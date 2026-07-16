@@ -364,6 +364,16 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
                 </Select>
               </div>
               <div className="space-y-1">
+                <Label>Bouquet das Séries</Label>
+                <Select value={bouquetSeries} onValueChange={setBouquetSeries}>
+                  <SelectTrigger><SelectValue placeholder="— nenhum —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">— nenhum —</SelectItem>
+                    {meta.bouquets.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <Label>Servidor de streaming</Label>
                 <Select value={serverId} onValueChange={setServerId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -374,6 +384,22 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
               </div>
             </>
           )}
+
+          <div className="pt-4 border-t space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Enriquecer com TMDB</Label>
+                <p className="text-xs text-muted-foreground">Busca capa, sinopse e gênero para filmes e séries.</p>
+              </div>
+              <Switch checked={usarTmdb} onCheckedChange={setUsarTmdb} />
+            </div>
+            {usarTmdb && (
+              <div className="space-y-1">
+                <Label>TMDB API Key <span className="text-xs text-muted-foreground">(opcional — usa a padrão do servidor se vazio)</span></Label>
+                <Input value={tmdbKey} onChange={e => setTmdbKey(e.target.value)} placeholder="v3 auth (32 chars)" />
+              </div>
+            )}
+          </div>
 
           <div className="pt-4 border-t space-y-3">
             <div className="flex items-center justify-between">
