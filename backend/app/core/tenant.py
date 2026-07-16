@@ -2,7 +2,7 @@
 Gerenciamento de schemas por tenant.
 
 Cada tenant tem seu próprio schema Postgres (tenant_<slug>) contendo tabelas
-isoladas de outros clientes.
+isoladas de outros clientes. Migrations são idempotentes (rodam a cada boot).
 """
 import re
 import secrets
@@ -31,6 +31,7 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
     schema = normalize_schema_name(schema)
     await conn.execute(text(f'CREATE SCHEMA IF NOT EXISTS "{schema}"'))
 
+    # ---- channels (catálogo local do tenant, não do XUI) ----
     await conn.execute(text(f'''
         CREATE TABLE IF NOT EXISTS "{schema}".channels (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -48,20 +49,54 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
     await conn.execute(text(f'ALTER TABLE "{schema}".channels ADD COLUMN IF NOT EXISTS group_name TEXT;'))
     await conn.execute(text(f'CREATE INDEX IF NOT EXISTS channels_category_idx ON "{schema}".channels (category);'))
 
+    # ---- xui_connections: painel XUI/Xtream de destino (multi-conexão) ----
+    await conn.execute(text(f'''
+        CREATE TABLE IF NOT EXISTS "{schema}".xui_connections (
+            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+            name TEXT NOT NULL,
+            host TEXT NOT NULL,
+            port INT NOT NULL DEFAULT 3306,
+            db_name TEXT NOT NULL,
+            db_user TEXT NOT NULL,
+            db_pass_enc TEXT NOT NULL,
+            is_default BOOLEAN NOT NULL DEFAULT false,
+            last_test_at TIMESTAMPTZ,
+            last_test_ok BOOLEAN,
+            last_test_error TEXT,
+            detected_version TEXT,
+            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+        );
+    '''))
+
+    # ---- xtream_sources: fonte de dados (M3U URL, M3U file, Xtream API) ----
     await conn.execute(text(f'''
         CREATE TABLE IF NOT EXISTS "{schema}".xtream_sources (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
             name TEXT NOT NULL,
-            host TEXT NOT NULL,
-            username TEXT NOT NULL,
-            password TEXT NOT NULL,
+            host TEXT,
+            username TEXT,
+            password TEXT,
             kind TEXT NOT NULL DEFAULT 'live',
             is_active BOOLEAN NOT NULL DEFAULT true,
             last_sync_at TIMESTAMPTZ,
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
     '''))
+    # Ampliações idempotentes
+    await conn.execute(text(f"ALTER TABLE \"{schema}\".xtream_sources ADD COLUMN IF NOT EXISTS source_type TEXT NOT NULL DEFAULT 'xtream_api';"))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS m3u_url TEXT;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS m3u_content TEXT;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS xui_connection_id UUID;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS mapping JSONB;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS auto_sync BOOLEAN NOT NULL DEFAULT false;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS auto_sync_cron TEXT;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS last_auto_run_at TIMESTAMPTZ;'))
+    # host/username/password/kind precisam virar NULLABLE (M3U puro não usa)
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN host DROP NOT NULL;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN username DROP NOT NULL;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN password DROP NOT NULL;'))
 
+    # ---- sync_jobs ----
     await conn.execute(text(f'''
         CREATE TABLE IF NOT EXISTS "{schema}".sync_jobs (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -69,6 +104,11 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
             source_id UUID,
             status TEXT NOT NULL DEFAULT 'pending',
             progress INT NOT NULL DEFAULT 0,
+            total_items INT NOT NULL DEFAULT 0,
+            inserted INT NOT NULL DEFAULT 0,
+            skipped INT NOT NULL DEFAULT 0,
+            errors INT NOT NULL DEFAULT 0,
+            log_tail TEXT,
             payload JSONB,
             result JSONB,
             error TEXT,
@@ -77,8 +117,17 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
     '''))
+    for col, typ in [
+        ("total_items", "INT NOT NULL DEFAULT 0"),
+        ("inserted", "INT NOT NULL DEFAULT 0"),
+        ("skipped", "INT NOT NULL DEFAULT 0"),
+        ("errors", "INT NOT NULL DEFAULT 0"),
+        ("log_tail", "TEXT"),
+    ]:
+        await conn.execute(text(f'ALTER TABLE "{schema}".sync_jobs ADD COLUMN IF NOT EXISTS {col} {typ};'))
     await conn.execute(text(f'CREATE INDEX IF NOT EXISTS sync_jobs_status_idx ON "{schema}".sync_jobs (status, created_at DESC);'))
 
+    # ---- banners ----
     await conn.execute(text(f'''
         CREATE TABLE IF NOT EXISTS "{schema}".banners (
             id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
