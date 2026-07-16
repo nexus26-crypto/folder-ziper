@@ -215,3 +215,69 @@ def append_bouquet(cur, conn, bouquet_id: int, stream_ids: list[int]) -> int:
     cur.execute("UPDATE bouquets SET bouquet_channels = %s WHERE id = %s", (json.dumps(existentes), bouquet_id))
     conn.commit()
     return len(novos)
+
+
+def append_series_bouquet(cur, conn, bouquet_id: int, series_ids: list[int]) -> int:
+    """Bouquet de séries usa a coluna bouquet_series."""
+    import json
+    if not bouquet_id or not series_ids:
+        return 0
+    cur.execute("SELECT bouquet_series FROM bouquets WHERE id = %s", (bouquet_id,))
+    r = cur.fetchone()
+    if not r:
+        return 0
+    existentes = []
+    if r[0]:
+        try: existentes = json.loads(r[0])
+        except Exception: existentes = []
+    novos = [sid for sid in series_ids if sid not in existentes]
+    existentes.extend(novos)
+    cur.execute("UPDATE bouquets SET bouquet_series = %s WHERE id = %s", (json.dumps(existentes), bouquet_id))
+    conn.commit()
+    return len(novos)
+
+
+def _norm_name(s: str) -> str:
+    import re, unicodedata
+    if not s: return ""
+    s = unicodedata.normalize("NFKD", s).encode("ascii", "ignore").decode()
+    s = re.sub(r"[^a-z0-9]+", "", s.lower())
+    return s
+
+
+def load_series_cache(cur) -> dict:
+    """Carrega cache de séries e episódios existentes.
+    Retorna:
+      {'series_by_name': {norm: id}, 'series_by_tmdb': {tmdb: id},
+       'episodes': set((series_id, season, sort))}
+    """
+    cache = {"series_by_name": {}, "series_by_tmdb": {}, "episodes": set()}
+    try:
+        cur.execute("SELECT id, title, tmdb_id FROM series")
+        for sid, title, tmdb in cur.fetchall():
+            n = _norm_name(title or "")
+            if n: cache["series_by_name"][n] = sid
+            if tmdb and str(tmdb) not in ("0", "", "None"):
+                cache["series_by_tmdb"][str(tmdb)] = sid
+    except Exception:
+        pass
+    try:
+        cur.execute("SELECT series_id, season_num, sort FROM series_episodes")
+        for sid, season, sort in cur.fetchall():
+            cache["episodes"].add((int(sid), int(season), int(sort)))
+    except Exception:
+        pass
+    return cache
+
+
+def find_series(cache: dict, nome: str, tmdb_id: str | None) -> int | None:
+    if tmdb_id and str(tmdb_id) in cache["series_by_tmdb"]:
+        return cache["series_by_tmdb"][str(tmdb_id)]
+    n = _norm_name(nome)
+    return cache["series_by_name"].get(n)
+
+
+def remember_series(cache: dict, nome: str, tmdb_id: str | None, sid: int):
+    n = _norm_name(nome)
+    if n: cache["series_by_name"][n] = sid
+    if tmdb_id: cache["series_by_tmdb"][str(tmdb_id)] = sid
