@@ -1,0 +1,8 @@
+node_modules
+.output
+.git
+dist
+.env
+.env.local
+backend
+*.md
