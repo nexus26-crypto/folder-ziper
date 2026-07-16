@@ -101,7 +101,8 @@ services:
       context: ..
       dockerfile: frontend.Dockerfile
       args:
-        VITE_API_URL: ${FRONTEND_URL:-http://localhost:8081}
+        # Vazio = usa mesma origem (nginx proxy /api -> api:8000). NÃO setar aqui.
+        VITE_API_URL: ""
     restart: unless-stopped
     depends_on:
       - api
