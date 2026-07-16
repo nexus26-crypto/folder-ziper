@@ -20,6 +20,19 @@ limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info(f"Starting {settings.APP_NAME} in {settings.APP_ENV}")
+    # Garante tabelas novas em todos os tenants existentes (idempotente).
+    try:
+        from sqlalchemy import select
+        from app.core.database import AsyncSessionLocal
+        from app.models.public import Tenant
+        from app.core.tenant import ensure_tenant_schema
+        async with AsyncSessionLocal() as db:
+            tenants = (await db.execute(select(Tenant))).scalars().all()
+        for t in tenants:
+            await ensure_tenant_schema(t.schema_name)
+        logger.info(f"ensured schema for {len(tenants)} tenant(s)")
+    except Exception as e:
+        logger.warning(f"tenant schema sync skipped: {e}")
     yield
     logger.info("Shutting down")
 
