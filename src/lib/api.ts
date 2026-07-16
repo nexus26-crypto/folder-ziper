@@ -6,7 +6,9 @@
  */
 import { useAuthStore } from "./auth-store";
 
-const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "http://localhost:8000";
+// Vazio = usa mesma origem (nginx faz proxy /api -> api:8000).
+// Sobrescreva com VITE_API_URL apenas se o frontend rodar em domínio separado.
+const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
 
 export class ApiError extends Error {
   status: number;
