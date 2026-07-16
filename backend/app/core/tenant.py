@@ -45,6 +45,7 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
             updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
     '''))
+    await conn.execute(text(f'ALTER TABLE "{schema}".channels ADD COLUMN IF NOT EXISTS group_name TEXT;'))
     await conn.execute(text(f'CREATE INDEX IF NOT EXISTS channels_category_idx ON "{schema}".channels (category);'))
 
     await conn.execute(text(f'''
