@@ -10,9 +10,10 @@ RUN bun install --frozen-lockfile || bun install
 # Copy source
 COPY . .
 
-# Build the TanStack Start app (outputs to .output/)
+# Build the TanStack Start app (outputs to .output/) — force Node server preset
 ARG VITE_API_URL
 ENV VITE_API_URL=${VITE_API_URL}
+ENV NITRO_PRESET=node-server
 RUN bun run build
 
 # Runtime stage
