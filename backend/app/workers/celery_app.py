@@ -22,8 +22,8 @@ celery_app.conf.update(
     timezone="America/Sao_Paulo",
     enable_utc=True,
     task_track_started=True,
-    task_time_limit=1800,
-    task_soft_time_limit=1500,
+    task_time_limit=7200,
+    task_soft_time_limit=7000,
     worker_prefetch_multiplier=1,
     task_acks_late=True,
     task_reject_on_worker_lost=True,
@@ -37,9 +37,10 @@ celery_app.conf.update(
             "task": "app.workers.tasks_scraping.scrape_jogos_do_dia",
             "schedule": crontab(hour=6, minute=0),
         },
-        "sync-epg-hourly": {
-            "task": "app.workers.tasks_sync.sync_epg_all_tenants",
-            "schedule": crontab(minute=15),
+        # Auto-sync: poll a cada minuto e dispara fontes cujo cron bate agora
+        "autosync-tick": {
+            "task": "app.workers.tasks_sync.autosync_tick",
+            "schedule": crontab(minute="*"),
         },
     },
 )

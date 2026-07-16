@@ -11,16 +11,21 @@ asyncpg==0.30.0
 alembic==1.14.0
 psycopg2-binary==2.9.10
 
+# MySQL (XUI/Xtream destino)
+mysql-connector-python==9.1.0
+
 # Auth
 passlib[bcrypt]==1.7.4
 bcrypt==4.0.1
 python-jose[cryptography]==3.3.0
 email-validator==2.2.0
+cryptography==43.0.3
 
 # Celery / Redis
 celery[redis]==5.4.0
 redis==5.2.1
 flower==2.0.1
+croniter==3.0.4
 
 # Rate limit
 slowapi==0.1.9
