@@ -283,7 +283,10 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
   const m0 = (source.mapping || {}) as any;
   const [bouquetCanais, setBouquetCanais] = useState<string>(String(m0.bouquet_canais ?? ""));
   const [bouquetFilmes, setBouquetFilmes] = useState<string>(String(m0.bouquet_filmes ?? ""));
+  const [bouquetSeries, setBouquetSeries] = useState<string>(String(m0.bouquet_series ?? ""));
   const [serverId, setServerId] = useState<string>(String(m0.server_id ?? "0"));
+  const [usarTmdb, setUsarTmdb] = useState<boolean>(!!m0.usar_tmdb);
+  const [tmdbKey, setTmdbKey] = useState<string>(m0.tmdb_api_key ?? "");
   const [autoSync, setAutoSync] = useState(source.auto_sync);
   const [cron, setCron] = useState(source.auto_sync_cron ?? "0 3 * * *");
 
@@ -304,9 +307,12 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
         mapping: {
           bouquet_canais: bouquetCanais ? Number(bouquetCanais) : null,
           bouquet_filmes: bouquetFilmes ? Number(bouquetFilmes) : null,
+          bouquet_series: bouquetSeries ? Number(bouquetSeries) : null,
           server_id: Number(serverId) || 0,
           criar_categorias: true,
-          live: {}, movie: {},
+          usar_tmdb: usarTmdb,
+          tmdb_api_key: tmdbKey || null,
+          live: {}, movie: {}, series: {},
         },
       });
       toast.success("Mapeamento salvo"); onSaved(); onOpenChange(false);
@@ -358,6 +364,16 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
                 </Select>
               </div>
               <div className="space-y-1">
+                <Label>Bouquet das Séries</Label>
+                <Select value={bouquetSeries} onValueChange={setBouquetSeries}>
+                  <SelectTrigger><SelectValue placeholder="— nenhum —" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="0">— nenhum —</SelectItem>
+                    {meta.bouquets.map(b => <SelectItem key={b.id} value={String(b.id)}>{b.nome}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
                 <Label>Servidor de streaming</Label>
                 <Select value={serverId} onValueChange={setServerId}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
@@ -368,6 +384,22 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
               </div>
             </>
           )}
+
+          <div className="pt-4 border-t space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Enriquecer com TMDB</Label>
+                <p className="text-xs text-muted-foreground">Busca capa, sinopse e gênero para filmes e séries.</p>
+              </div>
+              <Switch checked={usarTmdb} onCheckedChange={setUsarTmdb} />
+            </div>
+            {usarTmdb && (
+              <div className="space-y-1">
+                <Label>TMDB API Key <span className="text-xs text-muted-foreground">(opcional — usa a padrão do servidor se vazio)</span></Label>
+                <Input value={tmdbKey} onChange={e => setTmdbKey(e.target.value)} placeholder="v3 auth (32 chars)" />
+              </div>
+            )}
+          </div>
 
           <div className="pt-4 border-t space-y-3">
             <div className="flex items-center justify-between">

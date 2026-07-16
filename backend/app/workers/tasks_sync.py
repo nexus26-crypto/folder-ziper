@@ -110,6 +110,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
             _job_update(tenant_schema, job_id, log_line="puxando player_api…")
             lives = xtream_api.as_m3u_items(src["host"], src["username"], src["password"], "live")
             vods = xtream_api.as_m3u_items(src["host"], src["username"], src["password"], "vod")
+            # séries via Xtream API não implementado (usa /series info por série);
+            # M3U cobre. Vazio aqui.
             parsed = {"canais": lives, "filmes": vods, "series": []}
 
         total = len(parsed["canais"]) + len(parsed["filmes"]) + len(parsed["series"])
@@ -118,10 +120,14 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
 
         map_live = {k: int(v) for k, v in (mapping.get("live") or {}).items()}
         map_movie = {k: int(v) for k, v in (mapping.get("movie") or {}).items()}
+        map_series = {k: int(v) for k, v in (mapping.get("series") or {}).items()}
         bouquet_canais = mapping.get("bouquet_canais") or None
         bouquet_filmes = mapping.get("bouquet_filmes") or None
+        bouquet_series = mapping.get("bouquet_series") or None
         server_id = int(mapping.get("server_id") or 0)
         criar_cats = bool(mapping.get("criar_categorias", True))
+        usar_tmdb = bool(mapping.get("usar_tmdb", False))
+        tmdb_key = mapping.get("tmdb_api_key") or None
 
         totals = {"inseridos": 0, "skipped": 0, "errors": 0}
         state = {"done": 0}
@@ -142,6 +148,9 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
             _job_update(tenant_schema, job_id, log_line=f"canais: +{r['inseridos']} skip={r['skipped']} err={r['errors']}")
 
         if parsed["filmes"]:
+            if usar_tmdb:
+                _job_update(tenant_schema, job_id, log_line=f"TMDB filmes: enriquecendo {len(parsed['filmes'])}…")
+                importer.enrich_filmes_com_tmdb(parsed["filmes"], api_key=tmdb_key, progress=prog)
             r = importer.importar_filmes(
                 xui_conf, parsed["filmes"], map_movie,
                 bouquet_id=int(bouquet_filmes) if bouquet_filmes else None,
@@ -151,7 +160,16 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
             _job_update(tenant_schema, job_id, log_line=f"filmes: +{r['inseridos']} skip={r['skipped']} err={r['errors']}")
 
         if parsed["series"]:
-            _job_update(tenant_schema, job_id, log_line=f"séries ({len(parsed['series'])}): não implementado nesta fase — ignorado")
+            r = importer.importar_series(
+                xui_conf, parsed["series"], map_series,
+                bouquet_id=int(bouquet_series) if bouquet_series else None,
+                server_id=server_id, criar_categorias=criar_cats,
+                usar_tmdb=usar_tmdb, tmdb_api_key=tmdb_key, progress=prog,
+            )
+            for k in totals: totals[k] += r[k]
+            _job_update(tenant_schema, job_id,
+                        log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']}")
+
 
         elapsed = round(time.time() - started, 1)
         _job_update(
