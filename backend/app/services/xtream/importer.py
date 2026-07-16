@@ -113,14 +113,23 @@ def importar_filmes(
                 if not cat_id:
                     skipped += 1
                     continue
+                tm = (f.get("_tmdb") or {}) if isinstance(f.get("_tmdb"), dict) else {}
+                cover = tm.get("poster_url") or f.get("logo") or ""
+                backdrop = tm.get("backdrop_url") or f.get("logo") or ""
                 movie_props = json.dumps({
                     "name": f["nome"], "o_name": f["nome"],
-                    "cover_big": f.get("logo") or "", "movie_image": f.get("logo") or "",
-                    "release_date": "", "youtube_trailer": "", "director": "",
-                    "actors": "", "cast": "", "description": "", "plot": "", "genre": "",
-                    "backdrop_path": [f.get("logo")] if f.get("logo") else [],
+                    "cover_big": cover, "movie_image": cover,
+                    "release_date": tm.get("release_date", ""),
+                    "youtube_trailer": "", "director": "",
+                    "actors": "", "cast": "",
+                    "description": tm.get("plot", ""), "plot": tm.get("plot", ""),
+                    "genre": tm.get("genre", ""),
+                    "backdrop_path": [backdrop] if backdrop else [],
                     "duration_secs": 0, "duration": "00:00:00", "video": [], "audio": [],
-                    "bitrate": 0, "rating": "", "tmdb_id": "", "age": "", "mpaa_rating": "",
+                    "bitrate": 0,
+                    "rating": str(tm.get("rating", "")) if tm.get("rating") else "",
+                    "tmdb_id": tm.get("tmdb_id", ""),
+                    "age": "", "mpaa_rating": "",
                     "rating_count_kinopoisk": 0, "country": "", "kinopoisk_url": "",
                 })
                 cur.execute(
@@ -128,7 +137,7 @@ def importar_filmes(
                        (category_id, stream_display_name, stream_source, stream_icon, type,
                         movie_propeties, direct_source, target_container, added)
                        VALUES (%s,%s,%s,%s,2,%s,1,%s,%s)""",
-                    (cat_id, f["nome"], json.dumps([f["url"]]), f.get("logo") or "",
+                    (cat_id, f["nome"], json.dumps([f["url"]]), cover,
                      movie_props, extrair_extensao(f["url"]),
                      int(datetime.now().timestamp())),
                 )
