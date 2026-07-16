@@ -283,7 +283,10 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
   const m0 = (source.mapping || {}) as any;
   const [bouquetCanais, setBouquetCanais] = useState<string>(String(m0.bouquet_canais ?? ""));
   const [bouquetFilmes, setBouquetFilmes] = useState<string>(String(m0.bouquet_filmes ?? ""));
+  const [bouquetSeries, setBouquetSeries] = useState<string>(String(m0.bouquet_series ?? ""));
   const [serverId, setServerId] = useState<string>(String(m0.server_id ?? "0"));
+  const [usarTmdb, setUsarTmdb] = useState<boolean>(!!m0.usar_tmdb);
+  const [tmdbKey, setTmdbKey] = useState<string>(m0.tmdb_api_key ?? "");
   const [autoSync, setAutoSync] = useState(source.auto_sync);
   const [cron, setCron] = useState(source.auto_sync_cron ?? "0 3 * * *");
 
@@ -304,9 +307,12 @@ function MappingSheet({ source, xuis, onOpenChange, onSaved }: {
         mapping: {
           bouquet_canais: bouquetCanais ? Number(bouquetCanais) : null,
           bouquet_filmes: bouquetFilmes ? Number(bouquetFilmes) : null,
+          bouquet_series: bouquetSeries ? Number(bouquetSeries) : null,
           server_id: Number(serverId) || 0,
           criar_categorias: true,
-          live: {}, movie: {},
+          usar_tmdb: usarTmdb,
+          tmdb_api_key: tmdbKey || null,
+          live: {}, movie: {}, series: {},
         },
       });
       toast.success("Mapeamento salvo"); onSaved(); onOpenChange(false);
