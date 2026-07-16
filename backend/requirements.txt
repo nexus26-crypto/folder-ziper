@@ -1,0 +1,32 @@
+fastapi==0.115.6
+uvicorn[standard]==0.34.0
+gunicorn==23.0.0
+pydantic==2.10.4
+pydantic-settings==2.7.0
+python-multipart==0.0.20
+
+# DB
+sqlalchemy[asyncio]==2.0.36
+asyncpg==0.30.0
+alembic==1.14.0
+psycopg2-binary==2.9.10
+
+# Auth
+passlib[bcrypt]==1.7.4
+python-jose[cryptography]==3.3.0
+email-validator==2.2.0
+
+# Celery / Redis
+celery[redis]==5.4.0
+redis==5.2.1
+flower==2.0.1
+
+# Rate limit
+slowapi==0.1.9
+
+# Utils
+httpx==0.28.1
+Pillow==11.1.0
+python-dotenv==1.0.1
+structlog==24.4.0
+tenacity==9.0.0
