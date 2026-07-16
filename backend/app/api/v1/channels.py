@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 from fastapi import APIRouter, HTTPException, Query, status
-from sqlalchemy import text, bindparam
+from sqlalchemy import text
 
 from app.api.deps import DBSession, CurrentUser, CurrentTenant
 from app.schemas.channel import (
@@ -96,9 +96,9 @@ async def bulk_channels(
         return
     ids = [str(i) for i in payload.ids]
     stmt = {
-        "activate": text("UPDATE channels SET is_active = true, updated_at = now() WHERE id = ANY(:ids)"),
-        "deactivate": text("UPDATE channels SET is_active = false, updated_at = now() WHERE id = ANY(:ids)"),
-        "delete": text("DELETE FROM channels WHERE id = ANY(:ids)"),
+        "activate": "UPDATE channels SET is_active = true, updated_at = now() WHERE id = ANY(:ids)",
+        "deactivate": "UPDATE channels SET is_active = false, updated_at = now() WHERE id = ANY(:ids)",
+        "delete": "DELETE FROM channels WHERE id = ANY(:ids)",
     }[payload.action]
-    await db.execute(stmt.bindparams(bindparam("ids", expanding=False)), {"ids": ids})
+    await db.execute(text(stmt), {"ids": ids})
     await db.commit()
