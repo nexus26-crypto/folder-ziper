@@ -154,23 +154,24 @@ function XuiConnectionsCard() {
     <Card>
       <CardHeader className="flex flex-row items-start justify-between">
         <div>
-          <CardTitle>Conexões XUI / Xtream (destino)</CardTitle>
-          <CardDescription>Painéis onde as sincronizações vão gravar canais e filmes.</CardDescription>
+          <CardTitle>Painéis Xtream / XUI (destino)</CardTitle>
+          <CardDescription>Painéis onde as sincronizações vão gravar canais, filmes e séries.</CardDescription>
         </div>
         <Button size="sm" onClick={() => { setEditing(null); setSheetOpen(true); }}>
-          <Plus className="h-4 w-4 mr-2" />Adicionar
+          <Plus className="h-4 w-4 mr-2" />Adicionar painel
         </Button>
       </CardHeader>
       <CardContent className="space-y-2">
         {loading ? (
           <p className="text-sm text-muted-foreground">Carregando…</p>
         ) : conns.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Nenhuma conexão cadastrada.</p>
+          <p className="text-sm text-muted-foreground">Nenhum painel cadastrado.</p>
         ) : conns.map(c => (
           <div key={c.id} className="flex items-center justify-between border rounded-md p-3 gap-3">
             <div className="min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
                 <span className="font-medium">{c.name}</span>
+                <Badge variant="secondary">{PANEL_TYPE_LABELS[c.panel_type ?? "auto"]}</Badge>
                 {c.is_default && <Badge variant="outline">default</Badge>}
                 {c.last_test_ok === true && <Badge className="gap-1"><CheckCircle2 className="h-3 w-3" />{c.detected_version || "ok"}</Badge>}
                 {c.last_test_ok === false && <Badge variant="destructive" className="gap-1"><XCircle className="h-3 w-3" />falha</Badge>}
@@ -189,7 +190,7 @@ function XuiConnectionsCard() {
         ))}
       </CardContent>
       {sheetOpen && (
-        <XuiConnectionSheet
+        <PanelConnectionSheet
           editing={editing}
           onClose={() => setSheetOpen(false)}
           onSaved={() => { setSheetOpen(false); load(); }}
@@ -199,10 +200,11 @@ function XuiConnectionsCard() {
   );
 }
 
-function XuiConnectionSheet({ editing, onClose, onSaved }: {
+function PanelConnectionSheet({ editing, onClose, onSaved }: {
   editing: XuiConnection | null; onClose: () => void; onSaved: () => void;
 }) {
   const [name, setName] = useState(editing?.name ?? "");
+  const [panel_type, setPanelType] = useState<PanelType>(editing?.panel_type ?? "auto");
   const [host, setHost] = useState(editing?.host ?? "");
   const [port, setPort] = useState(editing?.port ?? 3306);
   const [db_name, setDbName] = useState(editing?.db_name ?? "xtream_iptvpro");
@@ -218,31 +220,48 @@ function XuiConnectionSheet({ editing, onClose, onSaved }: {
     setSaving(true);
     try {
       if (editing) {
-        const body: any = { name, host, port, db_name, db_user, is_default };
+        const body: Partial<Parameters<typeof xuiApi.update>[1]> = { name, panel_type, host, port, db_name, db_user, is_default };
         if (db_pass) body.db_pass = db_pass;
         await xuiApi.update(editing.id, body);
       } else {
-        await xuiApi.create({ name, host, port, db_name, db_user, db_pass, is_default });
+        await xuiApi.create({ name, panel_type, host, port, db_name, db_user, db_pass, is_default });
       }
       toast.success("Salvo"); onSaved();
     } catch (e) { toast.error(e instanceof ApiError ? e.message : "Erro"); }
     finally { setSaving(false); }
   }
 
+  const dbNameHint =
+    panel_type === "xtream_codes" ? "xtream_iptvpro (padrão Xtream Codes)"
+    : panel_type === "xui_one" || panel_type === "xui_r22" ? "xui (padrão XUI ONE)"
+    : "xtream_iptvpro / xui";
+
   return (
     <Sheet open onOpenChange={o => !o && onClose()}>
       <SheetContent className="w-full sm:max-w-md overflow-y-auto">
         <SheetHeader>
-          <SheetTitle>{editing ? "Editar conexão" : "Nova conexão XUI"}</SheetTitle>
-          <SheetDescription>Credenciais MySQL do painel XUI/Xtream de destino. Ficam criptografadas.</SheetDescription>
+          <SheetTitle>{editing ? "Editar painel" : "Novo painel Xtream/XUI"}</SheetTitle>
+          <SheetDescription>Credenciais MySQL do painel de destino. A senha fica criptografada com Fernet no seu banco.</SheetDescription>
         </SheetHeader>
         <div className="space-y-3 py-6">
-          <div className="space-y-1"><Label>Nome</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Meu painel" /></div>
+          <div className="space-y-1"><Label>Nome de referência</Label><Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex: Painel principal" /></div>
+          <div className="space-y-1">
+            <Label>Tipo do painel</Label>
+            <Select value={panel_type} onValueChange={v => setPanelType(v as PanelType)}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {(Object.keys(PANEL_TYPE_LABELS) as PanelType[]).map(k => (
+                  <SelectItem key={k} value={k}>{PANEL_TYPE_LABELS[k]}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">Se estiver em dúvida, deixe em <b>Autodetectar</b> — a gente descobre pela estrutura do banco.</p>
+          </div>
           <div className="grid grid-cols-3 gap-3">
             <div className="col-span-2 space-y-1"><Label>Host MySQL</Label><Input value={host} onChange={e => setHost(e.target.value)} placeholder="127.0.0.1" /></div>
             <div className="space-y-1"><Label>Porta</Label><Input type="number" value={port} onChange={e => setPort(Number(e.target.value))} /></div>
           </div>
-          <div className="space-y-1"><Label>Banco</Label><Input value={db_name} onChange={e => setDbName(e.target.value)} /></div>
+          <div className="space-y-1"><Label>Banco</Label><Input value={db_name} onChange={e => setDbName(e.target.value)} placeholder={dbNameHint} /></div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1"><Label>Usuário</Label><Input value={db_user} onChange={e => setDbUser(e.target.value)} /></div>
             <div className="space-y-1"><Label>Senha {editing && <span className="text-xs text-muted-foreground">(vazio = mantém)</span>}</Label><Input type="password" value={db_pass} onChange={e => setDbPass(e.target.value)} /></div>
@@ -260,3 +279,4 @@ function XuiConnectionSheet({ editing, onClose, onSaved }: {
     </Sheet>
   );
 }
+
