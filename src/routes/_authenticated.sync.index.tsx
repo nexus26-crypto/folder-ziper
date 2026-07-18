@@ -229,6 +229,7 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   xuis: XuiConnection[]; source: XtreamSource | null; onDone: () => void;
 }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<WizardStep>(1);
   const [method, setMethod] = useState<MethodChoice>("m3u_url");
   const [name, setName] = useState("");
