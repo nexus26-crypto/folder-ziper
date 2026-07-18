@@ -20,13 +20,20 @@ const nav = [
 
 function AuthenticatedLayout() {
   const navigate = useNavigate();
-  const { user, accessToken, logout } = useAuthStore();
+  const { user, accessToken, logout, _hasHydrated } = useAuthStore();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    if (!accessToken) navigate({ to: "/login", replace: true });
-  }, [accessToken, navigate]);
+    if (_hasHydrated && !accessToken) navigate({ to: "/login", replace: true });
+  }, [_hasHydrated, accessToken, navigate]);
 
+  if (!_hasHydrated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background text-muted-foreground text-sm">
+        Carregando…
+      </div>
+    );
+  }
   if (!accessToken || !user) return null;
 
   return (
