@@ -693,7 +693,7 @@ function MultiBouquet({ label, items, selected, onToggle }: {
     <div className="space-y-1.5">
       <Label>{label} <span className="text-xs text-muted-foreground">({selected.length} selecionado{selected.length === 1 ? "" : "s"})</span></Label>
       {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhum bouquet encontrado nesse XUI.</p>
+        <p className="text-xs text-muted-foreground">Nenhum bouquet encontrado nesse painel.</p>
       ) : (
         <div className="max-h-40 overflow-y-auto rounded border p-2 space-y-1">
           {items.map(b => {
