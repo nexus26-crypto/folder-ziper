@@ -258,7 +258,7 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             breakdown[category]["inserted"] = result.get("inseridos", 0)
             breakdown[category]["updated"] = result.get("atualizados", 0)
             breakdown[category]["skipped"] = result.get("skipped", 0)
-            breakdown[category]["deleted"] = result.get("orphans_removed", 0)
+            breakdown[category]["deleted"] = result.get("orphans_removed", 0) + result.get("deleted_pre", 0)
             breakdown[category]["errors"] = result.get("errors", 0)
             breakdown[category]["processed"] = breakdown[category]["total"]
             _flush_logs(force=True)
@@ -280,7 +280,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 if k in r: totals[k] += r[k]
             save_category("canais", r)
             _job_update(tenant_schema, job_id,
-                        log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+                        log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} del={r.get('deleted_pre',0)} orph={r.get('orphans_removed',0)}")
+
 
         if parsed["filmes"]:
             if usar_tmdb:
@@ -298,7 +299,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 if k in r: totals[k] += r[k]
             save_category("filmes", r)
             _job_update(tenant_schema, job_id,
-                        log_line=f"filmes: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+                        log_line=f"filmes: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} del={r.get('deleted_pre',0)} orph={r.get('orphans_removed',0)}")
+
 
         if parsed["series"]:
             _job_update(tenant_schema, job_id, log_line=f"séries modo={mode_series}")
@@ -313,7 +315,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 if k in r: totals[k] += r[k]
             save_category("series", r)
             _job_update(tenant_schema, job_id,
-                        log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+                        log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']} del={r.get('deleted_pre',0)} orph={r.get('orphans_removed',0)}")
+
 
         _flush_logs(force=True)
 

@@ -237,40 +237,52 @@ def append_series_bouquets(cur, conn, bouquet_ids: list[int], series_ids: list[i
 
 
 def delete_streams_of_type(cur, conn, stream_type: int) -> int:
-    """Excluir TUDO daquele tipo (usado no modo delete_all)."""
-    try:
-        cur.execute("SELECT id FROM streams WHERE type = %s", (stream_type,))
-        ids = [r[0] for r in cur.fetchall()]
-        if not ids: return 0
-        for tab in ("streams_servers", "stream_servers"):
-            try: cur.execute(f"DELETE FROM {tab} WHERE stream_id IN ({','.join('%s'*len(ids))})", ids)
-            except Exception: pass
-        cur.execute(f"DELETE FROM streams WHERE id IN ({','.join('%s'*len(ids))})", ids)
-        conn.commit()
-        return len(ids)
-    except Exception as e:
-        log.warning(f"delete_streams_of_type err: {e}")
+    """Excluir TUDO daquele tipo (usado no modo delete_all).
+    Levanta exceção se o delete falhar — quem chama decide como reportar."""
+    cur.execute("SELECT id FROM streams WHERE type = %s", (stream_type,))
+    ids = [r[0] for r in cur.fetchall()]
+    if not ids:
         return 0
+    # remove dependências primeiro (o schema real varia entre XUI/Xtream)
+    def _try(sql: str, params=None):
+        try:
+            cur.execute(sql, params or ())
+        except Exception as e:
+            log.debug(f"cleanup ignorado ({sql[:60]}...): {e}")
+    # limpa lote a lote pra evitar placeholders demais em bases grandes
+    BATCH = 500
+    for i in range(0, len(ids), BATCH):
+        chunk = ids[i:i+BATCH]
+        ph = ",".join(["%s"] * len(chunk))
+        for tab in ("streams_servers", "stream_servers"):
+            _try(f"DELETE FROM {tab} WHERE stream_id IN ({ph})", chunk)
+        # bouquets do XUI armazenam os ids como JSON — não dá pra apagar aqui;
+        # a órfã fica no bouquet mas não quebra nada
+        cur.execute(f"DELETE FROM streams WHERE id IN ({ph})", chunk)
+    conn.commit()
+    return len(ids)
 
 
 def delete_all_series(cur, conn) -> int:
-    try:
-        cur.execute("SELECT stream_id FROM series_episodes")
-        ep_ids = [r[0] for r in cur.fetchall()]
-        if ep_ids:
+    """Apaga TODAS as séries + episódios. Levanta exceção em caso de erro."""
+    cur.execute("SELECT stream_id FROM series_episodes")
+    ep_ids = [r[0] for r in cur.fetchall()]
+    BATCH = 500
+    if ep_ids:
+        for i in range(0, len(ep_ids), BATCH):
+            chunk = ep_ids[i:i+BATCH]
+            ph = ",".join(["%s"] * len(chunk))
             for tab in ("streams_servers", "stream_servers"):
-                try: cur.execute(f"DELETE FROM {tab} WHERE stream_id IN ({','.join('%s'*len(ep_ids))})", ep_ids)
-                except Exception: pass
-            cur.execute(f"DELETE FROM streams WHERE id IN ({','.join('%s'*len(ep_ids))})", ep_ids)
-        cur.execute("DELETE FROM series_episodes")
-        cur.execute("SELECT COUNT(*) FROM series")
-        n = cur.fetchone()[0]
-        cur.execute("DELETE FROM series")
-        conn.commit()
-        return n
-    except Exception as e:
-        log.warning(f"delete_all_series err: {e}")
-        return 0
+                try: cur.execute(f"DELETE FROM {tab} WHERE stream_id IN ({ph})", chunk)
+                except Exception as e: log.debug(f"cleanup ep servers: {e}")
+            cur.execute(f"DELETE FROM streams WHERE id IN ({ph})", chunk)
+    cur.execute("DELETE FROM series_episodes")
+    cur.execute("SELECT COUNT(*) FROM series")
+    n = cur.fetchone()[0]
+    cur.execute("DELETE FROM series")
+    conn.commit()
+    return n
+
 
 
 def delete_orphan_streams(cur, conn, stream_type: int, keep_ids: set[int]) -> int:

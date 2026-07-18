@@ -92,11 +92,17 @@ def importar_canais(
     total = len(canais)
 
     with xui_db.cursor_from(xui_config) as (conn, cur):
+        removed_pre = 0
         if mode == "delete_all":
-            n = xui_db.delete_streams_of_type(cur, conn, 1)
-            _tick(progress, 0, total, f"delete_all canais: -{n}")
-            _emit(log_item, f"[REMOVIDOS] canais existentes: {n}")
+            try:
+                removed_pre = xui_db.delete_streams_of_type(cur, conn, 1)
+                _tick(progress, 0, total, f"delete_all canais: -{removed_pre}")
+                _emit(log_item, f"[REMOVIDOS] canais existentes: {removed_pre}")
+            except Exception as e:
+                _emit(log_item, f"[ERRO] delete_all canais falhou: {e}")
+                raise
             mode = "insert_only"
+
 
         if opts.get("delete_dupes_before"):
             names = {c["nome"] for c in canais if c.get("nome")}
@@ -180,7 +186,9 @@ def importar_canais(
 
     _tick(progress, total, total, f"canais concluído: +{inseridos} ~{atualizados}")
     return {"inseridos": inseridos, "atualizados": atualizados, "skipped": skipped,
-            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed}
+            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed,
+            "deleted_pre": removed_pre}
+
 
 
 def importar_filmes(
@@ -199,11 +207,17 @@ def importar_filmes(
     total = len(filmes)
 
     with xui_db.cursor_from(xui_config) as (conn, cur):
+        removed_pre = 0
         if mode == "delete_all":
-            n = xui_db.delete_streams_of_type(cur, conn, 2)
-            _tick(progress, 0, total, f"delete_all filmes: -{n}")
-            _emit(log_item, f"[REMOVIDOS] filmes existentes: {n}")
+            try:
+                removed_pre = xui_db.delete_streams_of_type(cur, conn, 2)
+                _tick(progress, 0, total, f"delete_all filmes: -{removed_pre}")
+                _emit(log_item, f"[REMOVIDOS] filmes existentes: {removed_pre}")
+            except Exception as e:
+                _emit(log_item, f"[ERRO] delete_all filmes falhou: {e}")
+                raise
             mode = "insert_only"
+
         if opts.get("delete_dupes_before"):
             names = {f["nome"] for f in filmes if f.get("nome")}
             n = xui_db.delete_duplicate_names(cur, conn, 2, names)
@@ -297,7 +311,9 @@ def importar_filmes(
 
     _tick(progress, total, total, f"filmes concluído: +{inseridos} ~{atualizados}")
     return {"inseridos": inseridos, "atualizados": atualizados, "skipped": skipped,
-            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed}
+            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed,
+            "deleted_pre": removed_pre}
+
 
 
 def enrich_filmes_com_tmdb(filmes: list[dict], api_key: str | None = None,
@@ -347,11 +363,17 @@ def importar_series(
                                             language=tmdb_language, on_progress=_p)
 
     with xui_db.cursor_from(xui_config) as (conn, cur):
+        removed_pre = 0
         if mode == "delete_all":
-            n = xui_db.delete_all_series(cur, conn)
-            _tick(progress, 0, total, f"delete_all séries: -{n}")
-            _emit(log_item, f"[REMOVIDOS] séries existentes: {n}")
+            try:
+                removed_pre = xui_db.delete_all_series(cur, conn)
+                _tick(progress, 0, total, f"delete_all séries: -{removed_pre}")
+                _emit(log_item, f"[REMOVIDOS] séries existentes: {removed_pre}")
+            except Exception as e:
+                _emit(log_item, f"[ERRO] delete_all séries falhou: {e}")
+                raise
             mode = "insert_only"
+
 
         cache = xui_db.load_series_cache(cur)
         done_eps = 0
@@ -447,4 +469,5 @@ def importar_series(
     _tick(progress, total, total, f"séries concluído: +{inseridos} eps")
     return {"inseridos": inseridos, "skipped": skipped, "errors": errors,
             "series_criadas": series_criadas, "bouquet_added": bq_added,
-            "orphans_removed": orphans_removed}
+            "orphans_removed": orphans_removed, "deleted_pre": removed_pre}
+
