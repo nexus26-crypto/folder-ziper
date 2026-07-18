@@ -11,7 +11,6 @@ celery_app = Celery(
     include=[
         "app.workers.tasks_sync",
         "app.workers.tasks_scraping",
-        "app.workers.tasks_banner",
     ],
 )
 
@@ -30,7 +29,7 @@ celery_app.conf.update(
     task_routes={
         "app.workers.tasks_scraping.*": {"queue": "scraping"},
         "app.workers.tasks_sync.*": {"queue": "default"},
-        "app.workers.tasks_banner.*": {"queue": "default"},
+        
     },
     beat_schedule={
         "scrape-jogos-diario": {

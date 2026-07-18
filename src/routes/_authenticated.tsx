@@ -2,7 +2,7 @@ import { createFileRoute, Link, Outlet, useNavigate, useRouterState } from "@tan
 import { useEffect } from "react";
 import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
-import { LayoutDashboard, Tv, RefreshCw, Image as ImageIcon, Users, Settings, LogOut } from "lucide-react";
+import { LayoutDashboard, Tv, RefreshCw, Users, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/_authenticated")({
@@ -13,7 +13,6 @@ const nav = [
   { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
   { to: "/canais", label: "Canais", icon: Tv },
   { to: "/sync", label: "Sync", icon: RefreshCw },
-  { to: "/banners", label: "Banners", icon: ImageIcon },
   { to: "/usuarios", label: "Usuários", icon: Users },
   { to: "/configuracoes", label: "Configurações", icon: Settings },
 ] as const;

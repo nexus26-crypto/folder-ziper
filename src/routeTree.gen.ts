@@ -18,7 +18,6 @@ import { Route as AuthenticatedSyncRouteImport } from './routes/_authenticated.s
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated.configuracoes'
 import { Route as AuthenticatedCanaisRouteImport } from './routes/_authenticated.canais'
-import { Route as AuthenticatedBannersRouteImport } from './routes/_authenticated.banners'
 import { Route as AuthenticatedSyncIndexRouteImport } from './routes/_authenticated.sync.index'
 import { Route as AuthenticatedSyncJobsJobIdRouteImport } from './routes/_authenticated.sync.jobs.$jobId'
 
@@ -67,11 +66,6 @@ const AuthenticatedCanaisRoute = AuthenticatedCanaisRouteImport.update({
   path: '/canais',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
-const AuthenticatedBannersRoute = AuthenticatedBannersRouteImport.update({
-  id: '/banners',
-  path: '/banners',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
 const AuthenticatedSyncIndexRoute = AuthenticatedSyncIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -88,7 +82,6 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/banners': typeof AuthenticatedBannersRoute
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -101,7 +94,6 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/banners': typeof AuthenticatedBannersRoute
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
@@ -115,7 +107,6 @@ export interface FileRoutesById {
   '/_authenticated': typeof AuthenticatedRouteWithChildren
   '/login': typeof LoginRoute
   '/signup': typeof SignupRoute
-  '/_authenticated/banners': typeof AuthenticatedBannersRoute
   '/_authenticated/canais': typeof AuthenticatedCanaisRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
@@ -130,7 +121,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
-    | '/banners'
     | '/canais'
     | '/configuracoes'
     | '/dashboard'
@@ -143,7 +133,6 @@ export interface FileRouteTypes {
     | '/'
     | '/login'
     | '/signup'
-    | '/banners'
     | '/canais'
     | '/configuracoes'
     | '/dashboard'
@@ -156,7 +145,6 @@ export interface FileRouteTypes {
     | '/_authenticated'
     | '/login'
     | '/signup'
-    | '/_authenticated/banners'
     | '/_authenticated/canais'
     | '/_authenticated/configuracoes'
     | '/_authenticated/dashboard'
@@ -238,13 +226,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedCanaisRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
-    '/_authenticated/banners': {
-      id: '/_authenticated/banners'
-      path: '/banners'
-      fullPath: '/banners'
-      preLoaderRoute: typeof AuthenticatedBannersRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
     '/_authenticated/sync/': {
       id: '/_authenticated/sync/'
       path: '/'
@@ -276,7 +257,6 @@ const AuthenticatedSyncRouteWithChildren =
   AuthenticatedSyncRoute._addFileChildren(AuthenticatedSyncRouteChildren)
 
 interface AuthenticatedRouteChildren {
-  AuthenticatedBannersRoute: typeof AuthenticatedBannersRoute
   AuthenticatedCanaisRoute: typeof AuthenticatedCanaisRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
@@ -285,7 +265,6 @@ interface AuthenticatedRouteChildren {
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
-  AuthenticatedBannersRoute: AuthenticatedBannersRoute,
   AuthenticatedCanaisRoute: AuthenticatedCanaisRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,

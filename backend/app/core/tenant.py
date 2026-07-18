@@ -138,20 +138,8 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
         await conn.execute(text(f'ALTER TABLE "{schema}".sync_jobs ADD COLUMN IF NOT EXISTS {col} {typ};'))
     await conn.execute(text(f'CREATE INDEX IF NOT EXISTS sync_jobs_status_idx ON "{schema}".sync_jobs (status, created_at DESC);'))
 
-    # ---- banners ----
-    await conn.execute(text(f'''
-        CREATE TABLE IF NOT EXISTS "{schema}".banners (
-            id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-            title TEXT NOT NULL,
-            subtitle TEXT,
-            theme TEXT NOT NULL DEFAULT 'dark',
-            template TEXT NOT NULL DEFAULT 'default',
-            logo_url TEXT,
-            image_url TEXT,
-            status TEXT NOT NULL DEFAULT 'pending',
-            created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-        );
-    '''))
+    # (módulo de banners removido)
+    await conn.execute(text(f'DROP TABLE IF EXISTS "{schema}".banners CASCADE'))
 
 
 async def drop_tenant_schema(conn: AsyncConnection, schema: str) -> None:
