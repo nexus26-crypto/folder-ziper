@@ -363,11 +363,17 @@ def importar_series(
                                             language=tmdb_language, on_progress=_p)
 
     with xui_db.cursor_from(xui_config) as (conn, cur):
+        removed_pre = 0
         if mode == "delete_all":
-            n = xui_db.delete_all_series(cur, conn)
-            _tick(progress, 0, total, f"delete_all séries: -{n}")
-            _emit(log_item, f"[REMOVIDOS] séries existentes: {n}")
+            try:
+                removed_pre = xui_db.delete_all_series(cur, conn)
+                _tick(progress, 0, total, f"delete_all séries: -{removed_pre}")
+                _emit(log_item, f"[REMOVIDOS] séries existentes: {removed_pre}")
+            except Exception as e:
+                _emit(log_item, f"[ERRO] delete_all séries falhou: {e}")
+                raise
             mode = "insert_only"
+
 
         cache = xui_db.load_series_cache(cur)
         done_eps = 0
