@@ -79,7 +79,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
       { title: "VyntrixSync — Painel SaaS multi-tenant" },
-      { name: "description", content: "Plataforma SaaS profissional para gestão de canais, EPG, syncs Xtream e geração de banners." },
+      { name: "description", content: "Plataforma SaaS profissional para sincronização Xtream/XUI, gestão de canais, VOD, séries e EPG." },
       { property: "og:title", content: "VyntrixSync" },
       { property: "og:description", content: "Plataforma SaaS profissional para gestão de canais, EPG e syncs." },
       { property: "og:type", content: "website" },
