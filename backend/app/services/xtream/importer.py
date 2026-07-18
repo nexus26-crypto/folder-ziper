@@ -469,4 +469,5 @@ def importar_series(
     _tick(progress, total, total, f"séries concluído: +{inseridos} eps")
     return {"inseridos": inseridos, "skipped": skipped, "errors": errors,
             "series_criadas": series_criadas, "bouquet_added": bq_added,
-            "orphans_removed": orphans_removed}
+            "orphans_removed": orphans_removed, "deleted_pre": removed_pre}
+
