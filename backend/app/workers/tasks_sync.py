@@ -258,7 +258,7 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             breakdown[category]["inserted"] = result.get("inseridos", 0)
             breakdown[category]["updated"] = result.get("atualizados", 0)
             breakdown[category]["skipped"] = result.get("skipped", 0)
-            breakdown[category]["deleted"] = result.get("orphans_removed", 0)
+            breakdown[category]["deleted"] = result.get("orphans_removed", 0) + result.get("deleted_pre", 0)
             breakdown[category]["errors"] = result.get("errors", 0)
             breakdown[category]["processed"] = breakdown[category]["total"]
             _flush_logs(force=True)
