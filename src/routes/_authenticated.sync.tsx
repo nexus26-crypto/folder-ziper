@@ -324,9 +324,10 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
         await syncApi.updateSource(sid, updateBody);
       }
       if (triggerNow && sid) {
-        const job = await syncApi.trigger(sid);
+        const job = await syncApi.trigger(sid, force);
         setCreatedJobId(job.id);
       }
+
       onDone();
       return true;
     } catch (e) {
