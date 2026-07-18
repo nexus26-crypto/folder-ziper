@@ -76,8 +76,9 @@ def _download_m3u(url: str) -> str:
 
 
 @celery_app.task(name="app.workers.tasks_sync.run_source_sync", bind=True, max_retries=1)
-def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
+def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force: bool = False):
     """Task principal — dispara sync para uma fonte já registrada."""
+    import hashlib
     started = time.time()
     _job_update(tenant_schema, job_id, status="running",
                 started_at=datetime.now(timezone.utc), log_line="start")
@@ -89,34 +90,53 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
         mapping = (src.get("mapping") or {}) if isinstance(src.get("mapping"), dict) else json.loads(src.get("mapping") or "{}")
         xui = _load_xui(tenant_schema, str(src.get("xui_connection_id")) if src.get("xui_connection_id") else None)
         if not xui:
-            raise RuntimeError("nenhum XUI cadastrado ou selecionado")
+            raise RuntimeError("nenhum painel Xtream/XUI cadastrado")
 
         xui_conf = {
             "host": xui["host"], "port": xui["port"],
             "db_name": xui["db_name"], "db_user": xui["db_user"], "db_pass": xui["db_pass"],
+            "panel_type": xui.get("panel_type") or "auto",
         }
 
         # Obter items da fonte
         stype = src.get("source_type") or "xtream_api"
-        _job_update(tenant_schema, job_id, log_line=f"fonte tipo={stype}")
+        _job_update(tenant_schema, job_id, log_line=f"fonte tipo={stype} · painel={xui_conf['panel_type']}")
 
+        raw_content = ""
         if stype == "m3u_url":
             _job_update(tenant_schema, job_id, log_line=f"baixando {src.get('m3u_url')}")
-            content = _download_m3u(src["m3u_url"])
-            parsed = m3u_parser.parse_m3u(content)
+            raw_content = _download_m3u(src["m3u_url"])
+            parsed = m3u_parser.parse_m3u(raw_content)
         elif stype == "m3u_file":
-            parsed = m3u_parser.parse_m3u(src.get("m3u_content") or "")
+            raw_content = src.get("m3u_content") or ""
+            parsed = m3u_parser.parse_m3u(raw_content)
         else:  # xtream_api
             _job_update(tenant_schema, job_id, log_line="puxando player_api…")
             lives = xtream_api.as_m3u_items(src["host"], src["username"], src["password"], "live")
             vods = xtream_api.as_m3u_items(src["host"], src["username"], src["password"], "vod")
-            # séries via Xtream API não implementado (usa /series info por série);
-            # M3U cobre. Vazio aqui.
             parsed = {"canais": lives, "filmes": vods, "series": []}
+            raw_content = json.dumps({"live_count": len(lives), "vod_count": len(vods)}, sort_keys=True)
+
+        # -------- Incremental: skip se conteúdo idêntico à última rodada --------
+        content_hash = hashlib.sha256(raw_content.encode("utf-8", errors="ignore")).hexdigest()
+        prev_hash = src.get("last_content_hash")
+        if prev_hash == content_hash and not force:
+            _job_update(tenant_schema, job_id, status="success", progress=100,
+                        finished_at=datetime.now(timezone.utc),
+                        log_line=f"⚡ conteúdo idêntico à última sync (hash {content_hash[:8]}), pulando. Use force=true pra rodar.",
+                        result=json.dumps({"skipped_incremental": True, "content_hash": content_hash}))
+            return
+        with _sync_engine().begin() as conn:
+            conn.execute(
+                text(f'UPDATE "{tenant_schema}".xtream_sources SET last_content_hash=:h, last_content_at=:ts WHERE id=:id'),
+                {"h": content_hash, "ts": datetime.now(timezone.utc), "id": source_id},
+            )
 
         total = len(parsed["canais"]) + len(parsed["filmes"]) + len(parsed["series"])
         _job_update(tenant_schema, job_id, total_items=total,
-                    log_line=f"parse: {len(parsed['canais'])} canais, {len(parsed['filmes'])} filmes, {len(parsed['series'])} series")
+                    log_line=f"parse: {len(parsed['canais'])} canais · {len(parsed['filmes'])} filmes · {len(parsed['series'])} séries · hash={content_hash[:8]}")
+
+
 
         def _as_list(v):
             if v is None or v == "": return []
