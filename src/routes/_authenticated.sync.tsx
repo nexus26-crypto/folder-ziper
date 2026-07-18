@@ -882,7 +882,12 @@ function Step5Done({ sourceId, jobId, onClose }: { sourceId: string; jobId: stri
           </button>
         </div>
       )}
-      <div className="pt-2"><Button onClick={onClose}>Fechar</Button></div>
+      <div className="pt-2 flex gap-2 justify-center">
+        {jobId && (
+          <Button asChild><Link to="/sync/jobs/$jobId" params={{ jobId }} onClick={onClose}>Acompanhar sync</Link></Button>
+        )}
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
+      </div>
       <p className="text-xs text-muted-foreground pt-2">ID da fonte: <code className="font-mono">{sourceId}</code></p>
     </div>
   );
