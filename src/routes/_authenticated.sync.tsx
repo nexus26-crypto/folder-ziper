@@ -335,10 +335,29 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
     } finally { setSaving(false); }
   }
 
+  const [preview, setPreview] = useState<SyncPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [force, setForce] = useState(false);
+
+  async function runPreview() {
+    setPreviewing(true);
+    try {
+      const okSave = await saveAndMaybeTrigger(false);
+      if (!okSave) return;
+      const sid = source?.id ?? createdSourceId;
+      if (!sid) return;
+      const pv = await syncApi.preview(sid);
+      setPreview(pv);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Erro ao gerar preview");
+    } finally { setPreviewing(false); }
+  }
+
   async function handleFinish() {
     const ok = await saveAndMaybeTrigger(true);
     if (ok) setStep(5);
   }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
