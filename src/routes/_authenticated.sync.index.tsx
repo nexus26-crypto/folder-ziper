@@ -333,16 +333,18 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
         if (method === "m3u_url") updateBody.m3u_url = m3uUrl;
         await syncApi.updateSource(sid, updateBody);
       }
+      let jobId: string | null = null;
       if (triggerNow && sid) {
         const job = await syncApi.trigger(sid, force);
         setCreatedJobId(job.id);
+        jobId = job.id;
       }
 
       onDone();
-      return true;
+      return { ok: true as const, jobId };
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : (e as Error).message || "Erro ao salvar");
-      return false;
+      return { ok: false as const, jobId: null };
     } finally { setSaving(false); }
   }
 
