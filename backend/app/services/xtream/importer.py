@@ -207,11 +207,17 @@ def importar_filmes(
     total = len(filmes)
 
     with xui_db.cursor_from(xui_config) as (conn, cur):
+        removed_pre = 0
         if mode == "delete_all":
-            n = xui_db.delete_streams_of_type(cur, conn, 2)
-            _tick(progress, 0, total, f"delete_all filmes: -{n}")
-            _emit(log_item, f"[REMOVIDOS] filmes existentes: {n}")
+            try:
+                removed_pre = xui_db.delete_streams_of_type(cur, conn, 2)
+                _tick(progress, 0, total, f"delete_all filmes: -{removed_pre}")
+                _emit(log_item, f"[REMOVIDOS] filmes existentes: {removed_pre}")
+            except Exception as e:
+                _emit(log_item, f"[ERRO] delete_all filmes falhou: {e}")
+                raise
             mode = "insert_only"
+
         if opts.get("delete_dupes_before"):
             names = {f["nome"] for f in filmes if f.get("nome")}
             n = xui_db.delete_duplicate_names(cur, conn, 2, names)
