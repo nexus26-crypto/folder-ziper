@@ -91,7 +91,7 @@ function SyncPage() {
   const navigate = useNavigate();
   async function trigger(id: string) {
     try {
-      const job = await syncApi.trigger(id);
+      const job = await syncApi.trigger(id, true);
       toast.success("Sincronização enfileirada");
       await loadAll();
       navigate({ to: "/sync/jobs/$jobId", params: { jobId: job.id } });
@@ -350,7 +350,7 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
 
   const [preview, setPreview] = useState<SyncPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const [force, setForce] = useState(false);
+  const [force, setForce] = useState(true);
 
   async function runPreview() {
     setPreviewing(true);
