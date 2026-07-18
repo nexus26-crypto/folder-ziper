@@ -161,7 +161,10 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
         raw_content = ""
         if stype == "m3u_url":
             _job_update(tenant_schema, job_id, log_line=f"baixando {src.get('m3u_url')}")
-            raw_content = _download_m3u(src["m3u_url"])
+            raw_content = _download_m3u(
+                src["m3u_url"],
+                log=lambda m: _job_update(tenant_schema, job_id, log_line=m),
+            )
             parsed = m3u_parser.parse_m3u(raw_content)
         elif stype == "m3u_file":
             raw_content = src.get("m3u_content") or ""
