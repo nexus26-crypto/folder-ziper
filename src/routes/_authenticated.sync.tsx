@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody } from "@/lib/api/sync";
+import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody, type SyncPreview, type PreviewCounts } from "@/lib/api/sync";
 import { xuiApi, type XuiConnection, type XuiMeta } from "@/lib/api/xui";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
