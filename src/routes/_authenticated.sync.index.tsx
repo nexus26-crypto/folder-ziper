@@ -350,7 +350,7 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
 
   const [preview, setPreview] = useState<SyncPreview | null>(null);
   const [previewing, setPreviewing] = useState(false);
-  const [force, setForce] = useState(false);
+  const [force, setForce] = useState(true);
 
   async function runPreview() {
     setPreviewing(true);
