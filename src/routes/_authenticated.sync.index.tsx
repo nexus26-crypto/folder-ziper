@@ -21,7 +21,7 @@ import {
   Rocket, Check, Link as LinkIcon, Upload, Radio, Film, Tv, Zap, Copy,
 } from "lucide-react";
 
-export const Route = createFileRoute("/_authenticated/sync")({
+export const Route = createFileRoute("/_authenticated/sync/")({
   head: () => ({ meta: [{ title: "Sync — VyntrixSync" }] }),
   component: SyncPage,
 });
