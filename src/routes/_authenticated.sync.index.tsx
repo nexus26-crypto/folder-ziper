@@ -366,7 +366,15 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
 
   async function handleFinish() {
     const ok = await saveAndMaybeTrigger(true);
-    if (ok) setStep(5);
+    if (!ok) return;
+    onOpenChange(false);
+    // Pega o jobId direto do estado (setCreatedJobId foi chamado dentro de saveAndMaybeTrigger)
+    const jid = createdJobId;
+    if (jid) {
+      navigate({ to: "/sync/jobs/$jobId", params: { jobId: jid } });
+    } else {
+      setStep(5);
+    }
   }
 
 
