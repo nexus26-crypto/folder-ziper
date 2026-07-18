@@ -553,8 +553,9 @@ function Step3Mapping({ mapping, setMapping, meta, loading }: {
     setMapping({ ...mapping, [key]: next });
   };
 
-  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Consultando XUI…</div>;
-  if (!meta) return <div className="py-8 text-center text-sm text-muted-foreground">Selecione uma conexão XUI válida antes.</div>;
+  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Consultando painel Xtream/XUI…</div>;
+  if (!meta) return <div className="py-8 text-center text-sm text-muted-foreground">Selecione um painel de destino válido antes.</div>;
+
 
   return (
     <div className="space-y-6">
