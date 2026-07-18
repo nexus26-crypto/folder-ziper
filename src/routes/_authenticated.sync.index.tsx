@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody, type SyncPreview, type PreviewCounts } from "@/lib/api/sync";
@@ -88,8 +88,14 @@ function SyncPage() {
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [jobs, loadAll]);
 
+  const navigate = useNavigate();
   async function trigger(id: string) {
-    try { await syncApi.trigger(id); toast.success("Sincronização enfileirada"); await loadAll(); }
+    try {
+      const job = await syncApi.trigger(id);
+      toast.success("Sincronização enfileirada");
+      await loadAll();
+      navigate({ to: "/sync/jobs/$jobId", params: { jobId: job.id } });
+    }
     catch (e) { toast.error(e instanceof ApiError ? e.message : "Erro"); }
   }
   async function deleteSource(id: string) {
@@ -223,6 +229,7 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   open: boolean; onOpenChange: (o: boolean) => void;
   xuis: XuiConnection[]; source: XtreamSource | null; onDone: () => void;
 }) {
+  const navigate = useNavigate();
   const [step, setStep] = useState<WizardStep>(1);
   const [method, setMethod] = useState<MethodChoice>("m3u_url");
   const [name, setName] = useState("");
@@ -326,16 +333,18 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
         if (method === "m3u_url") updateBody.m3u_url = m3uUrl;
         await syncApi.updateSource(sid, updateBody);
       }
+      let jobId: string | null = null;
       if (triggerNow && sid) {
         const job = await syncApi.trigger(sid, force);
         setCreatedJobId(job.id);
+        jobId = job.id;
       }
 
       onDone();
-      return true;
+      return { ok: true as const, jobId };
     } catch (e) {
       toast.error(e instanceof ApiError ? e.message : (e as Error).message || "Erro ao salvar");
-      return false;
+      return { ok: false as const, jobId: null };
     } finally { setSaving(false); }
   }
 
@@ -346,8 +355,8 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   async function runPreview() {
     setPreviewing(true);
     try {
-      const okSave = await saveAndMaybeTrigger(false);
-      if (!okSave) return;
+      const res = await saveAndMaybeTrigger(false);
+      if (!res.ok) return;
       const sid = source?.id ?? createdSourceId;
       if (!sid) return;
       const pv = await syncApi.preview(sid);
@@ -358,8 +367,14 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   }
 
   async function handleFinish() {
-    const ok = await saveAndMaybeTrigger(true);
-    if (ok) setStep(5);
+    const res = await saveAndMaybeTrigger(true);
+    if (!res.ok) return;
+    onOpenChange(false);
+    if (res.jobId) {
+      navigate({ to: "/sync/jobs/$jobId", params: { jobId: res.jobId } });
+    } else {
+      setStep(5);
+    }
   }
 
 
