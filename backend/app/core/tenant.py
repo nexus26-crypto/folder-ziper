@@ -122,11 +122,18 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
         );
     '''))
     for col, typ in [
+        ("source_id", "UUID"),
+        ("job_type", "TEXT"),
         ("total_items", "INT NOT NULL DEFAULT 0"),
         ("inserted", "INT NOT NULL DEFAULT 0"),
         ("skipped", "INT NOT NULL DEFAULT 0"),
         ("errors", "INT NOT NULL DEFAULT 0"),
         ("log_tail", "TEXT"),
+        ("payload", "JSONB"),
+        ("result", "JSONB"),
+        ("error", "TEXT"),
+        ("started_at", "TIMESTAMPTZ"),
+        ("finished_at", "TIMESTAMPTZ"),
     ]:
         await conn.execute(text(f'ALTER TABLE "{schema}".sync_jobs ADD COLUMN IF NOT EXISTS {col} {typ};'))
     await conn.execute(text(f'CREATE INDEX IF NOT EXISTS sync_jobs_status_idx ON "{schema}".sync_jobs (status, created_at DESC);'))
