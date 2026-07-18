@@ -107,21 +107,21 @@ def _load_genres(kind: str, api_key: str | None) -> dict[int, str]:
         return {}
 
 
-def _search(kind: str, nome: str, api_key: str | None) -> dict:
+def _search(kind: str, nome: str, api_key: str | None, language: str = "pt-BR") -> dict:
     key = _key(api_key)
     empty = {"tmdb_id": "", "plot": "", "release_date": "", "rating": "",
              "genre": "", "poster_url": "", "backdrop_url": ""}
     if not key or not nome:
         return empty
     limpo = limpar_nome_tmdb(nome)
-    ck = f"{kind}:{limpo.lower()}"
+    ck = f"{kind}:{language}:{limpo.lower()}"
     if ck in _CACHE:
         return _CACHE[ck]
     try:
         endpoint = "search/movie" if kind == "movie" else "search/tv"
         with _client() as c:
             r = c.get(f"{TMDB_BASE}/{endpoint}",
-                      params={"api_key": key, "query": limpo, "language": "pt-BR"})
+                      params={"api_key": key, "query": limpo, "language": language})
             r.raise_for_status()
             data = r.json()
         results = data.get("results") or []
@@ -147,23 +147,22 @@ def _search(kind: str, nome: str, api_key: str | None) -> dict:
         return empty
 
 
-def buscar_filme(nome: str, api_key: str | None = None) -> dict:
-    return _search("movie", nome, api_key)
+def buscar_filme(nome: str, api_key: str | None = None, language: str = "pt-BR") -> dict:
+    return _search("movie", nome, api_key, language)
 
 
-def buscar_serie(nome: str, api_key: str | None = None) -> dict:
-    return _search("tv", nome, api_key)
+def buscar_serie(nome: str, api_key: str | None = None, language: str = "pt-BR") -> dict:
+    return _search("tv", nome, api_key, language)
 
 
 def buscar_em_lote(nomes: list[str], kind: str = "movie", api_key: str | None = None,
-                   on_progress=None) -> dict[str, dict]:
-    """kind: 'movie'|'tv'."""
+                   language: str = "pt-BR", on_progress=None) -> dict[str, dict]:
     out: dict[str, dict] = {}
     if not nomes:
         return out
     fn = buscar_filme if kind == "movie" else buscar_serie
     with ThreadPoolExecutor(max_workers=TMDB_WORKERS) as ex:
-        futs = {ex.submit(fn, n, api_key): n for n in nomes}
+        futs = {ex.submit(fn, n, api_key, language): n for n in nomes}
         done = 0
         for f in as_completed(futs):
             n = futs[f]
@@ -176,3 +175,4 @@ def buscar_em_lote(nomes: list[str], kind: str = "movie", api_key: str | None = 
                 try: on_progress(done, len(nomes))
                 except Exception: pass
     return out
+
