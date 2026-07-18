@@ -323,6 +323,7 @@ def importar_series(
     usar_tmdb: bool = False, tmdb_api_key: str | None = None,
     tmdb_language: str = "pt-BR",
     progress: ProgressCB | None = None,
+    log_item: LogItemCB | None = None,
 ) -> dict:
     from collections import defaultdict
     from app.services.xtream import tmdb as tmdb_mod
@@ -349,6 +350,7 @@ def importar_series(
         if mode == "delete_all":
             n = xui_db.delete_all_series(cur, conn)
             _tick(progress, 0, total, f"delete_all séries: -{n}")
+            _emit(log_item, f"[REMOVIDOS] séries existentes: {n}")
             mode = "insert_only"
 
         cache = xui_db.load_series_cache(cur)
@@ -360,7 +362,9 @@ def importar_series(
                     cat_id = xui_db.ensure_category(cur, conn, categoria, "series")
                     if cat_id: mapping_categoria[categoria] = cat_id
                 if not cat_id:
-                    skipped += len(eps); done_eps += len(eps); continue
+                    skipped += len(eps); done_eps += len(eps)
+                    _emit(log_item, f"[IGNORADO] série {serie_nome} — sem categoria mapeada ({len(eps)} eps)")
+                    continue
 
                 info = tmdb_map.get(serie_nome, {}) if usar_tmdb else {}
                 tmdb_id = info.get("tmdb_id") or ""
@@ -381,6 +385,7 @@ def importar_series(
                     serie_id = cur.lastrowid
                     series_criadas += 1
                     xui_db.remember_series(cache, serie_nome, tmdb_id, serie_id)
+                    _emit(log_item, f"[SÉRIE NOVA] {serie_nome} ({serie_id}) [{categoria}]" + (f" TMDB:{tmdb_id}" if tmdb_id else ""))
 
                 touched_series.add(serie_id)
                 if serie_id not in series_ids_bouquet:
@@ -390,8 +395,11 @@ def importar_series(
                 for ep in eps:
                     done_eps += 1
                     temp = int(ep.get("temp") or 1); num = int(ep.get("ep") or 1)
+                    ep_label = f"{serie_nome} S{temp:02d}E{num:02d}"
                     if (serie_id, temp, num) in cache["episodes"]:
-                        skipped += 1; continue
+                        skipped += 1
+                        _emit(log_item, f"[IGNORADO] {done_eps}/{total} {ep_label} — já existe")
+                        continue
                     props = json.dumps({
                         "release_date": "", "plot": info.get("plot", ""),
                         "duration_secs": 0, "duration": "00:00:00",
@@ -407,7 +415,7 @@ def importar_series(
                             (stream_display_name, stream_source, stream_icon, type,
                              movie_propeties, direct_source, target_container, added)
                         VALUES (%s,%s,%s,5,%s,1,%s,%s)
-                    """, (ep.get("nome") or f"{serie_nome} S{temp:02d}E{num:02d}",
+                    """, (ep.get("nome") or ep_label,
                           json.dumps([ep["url"]]),
                           ep.get("logo") or "", props,
                           extrair_extensao(ep["url"]),
@@ -419,16 +427,20 @@ def importar_series(
                         xui_db.insert_stream_server(cur, stream_id, server_id)
                     cache["episodes"].add((serie_id, temp, num))
                     inseridos += 1
+                    _emit(log_item, f"[INSERIDO] {done_eps}/{total} {ep_label} ({stream_id})")
                     if inseridos % BATCH == 0:
                         conn.commit()
                         _tick(progress, done_eps, total, f"séries: +{inseridos} eps")
             except Exception as e:
                 errors += 1
+                _emit(log_item, f"[ERRO] série {serie_nome} — {e}")
         conn.commit()
 
         orphans_removed = 0
         if mode == "mirror" or opts.get("remove_orphans"):
             orphans_removed = xui_db.delete_orphan_series(cur, conn, touched_series)
+            if orphans_removed:
+                _emit(log_item, f"[ÓRFÃOS] séries removidas: {orphans_removed}")
 
         bq_added = xui_db.append_series_bouquets(cur, conn, bouquet_ids or [], series_ids_bouquet)
 
