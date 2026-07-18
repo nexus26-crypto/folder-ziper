@@ -134,7 +134,7 @@ function SyncPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead><TableHead>Tipo</TableHead>
-                <TableHead>Destino XUI</TableHead><TableHead>Auto</TableHead>
+                <TableHead>Painel destino</TableHead><TableHead>Auto</TableHead>
                 <TableHead>Última sync</TableHead><TableHead className="w-56" />
               </TableRow>
             </TableHeader>
