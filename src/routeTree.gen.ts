@@ -19,6 +19,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated.configuracoes'
 import { Route as AuthenticatedCanaisRouteImport } from './routes/_authenticated.canais'
 import { Route as AuthenticatedBannersRouteImport } from './routes/_authenticated.banners'
+import { Route as AuthenticatedSyncIndexRouteImport } from './routes/_authenticated.sync.index'
 import { Route as AuthenticatedSyncJobsJobIdRouteImport } from './routes/_authenticated.sync.jobs.$jobId'
 
 const SignupRoute = SignupRouteImport.update({
@@ -71,6 +72,11 @@ const AuthenticatedBannersRoute = AuthenticatedBannersRouteImport.update({
   path: '/banners',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSyncIndexRoute = AuthenticatedSyncIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedSyncRoute,
+} as any)
 const AuthenticatedSyncJobsJobIdRoute =
   AuthenticatedSyncJobsJobIdRouteImport.update({
     id: '/jobs/$jobId',
@@ -88,6 +94,7 @@ export interface FileRoutesByFullPath {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/sync': typeof AuthenticatedSyncRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/sync/': typeof AuthenticatedSyncIndexRoute
   '/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRoutesByTo {
@@ -98,8 +105,8 @@ export interface FileRoutesByTo {
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/sync': typeof AuthenticatedSyncRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/sync': typeof AuthenticatedSyncIndexRoute
   '/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRoutesById {
@@ -114,6 +121,7 @@ export interface FileRoutesById {
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/sync': typeof AuthenticatedSyncRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/_authenticated/sync/': typeof AuthenticatedSyncIndexRoute
   '/_authenticated/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRouteTypes {
@@ -128,6 +136,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/sync'
     | '/usuarios'
+    | '/sync/'
     | '/sync/jobs/$jobId'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -138,8 +147,8 @@ export interface FileRouteTypes {
     | '/canais'
     | '/configuracoes'
     | '/dashboard'
-    | '/sync'
     | '/usuarios'
+    | '/sync'
     | '/sync/jobs/$jobId'
   id:
     | '__root__'
@@ -153,6 +162,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/sync'
     | '/_authenticated/usuarios'
+    | '/_authenticated/sync/'
     | '/_authenticated/sync/jobs/$jobId'
   fileRoutesById: FileRoutesById
 }
@@ -235,6 +245,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBannersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sync/': {
+      id: '/_authenticated/sync/'
+      path: '/'
+      fullPath: '/sync/'
+      preLoaderRoute: typeof AuthenticatedSyncIndexRouteImport
+      parentRoute: typeof AuthenticatedSyncRoute
+    }
     '/_authenticated/sync/jobs/$jobId': {
       id: '/_authenticated/sync/jobs/$jobId'
       path: '/jobs/$jobId'
@@ -246,10 +263,12 @@ declare module '@tanstack/react-router' {
 }
 
 interface AuthenticatedSyncRouteChildren {
+  AuthenticatedSyncIndexRoute: typeof AuthenticatedSyncIndexRoute
   AuthenticatedSyncJobsJobIdRoute: typeof AuthenticatedSyncJobsJobIdRoute
 }
 
 const AuthenticatedSyncRouteChildren: AuthenticatedSyncRouteChildren = {
+  AuthenticatedSyncIndexRoute: AuthenticatedSyncIndexRoute,
   AuthenticatedSyncJobsJobIdRoute: AuthenticatedSyncJobsJobIdRoute,
 }
 

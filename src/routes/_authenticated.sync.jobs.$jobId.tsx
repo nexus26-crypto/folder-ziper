@@ -1,4 +1,4 @@
-import { createFileRoute, Link, useParams } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { syncApi, type SyncJob } from "@/lib/api/sync";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,7 @@ function duration(a: string | null, b: string | null) {
 }
 
 function JobDetailPage() {
-  const { jobId } = useParams({ from: "/_authenticated/sync/jobs/$jobId" });
+  const { jobId } = Route.useParams();
   const [job, setJob] = useState<SyncJob | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
@@ -54,7 +54,9 @@ function JobDetailPage() {
         if (!alive) return;
         setJob(j); setErr(null);
         if (j.status === "success" || j.status === "failed") stop = true;
-      } catch (e: any) { if (alive) setErr(e?.message ?? "erro"); }
+      } catch (e) {
+        if (alive) setErr(e instanceof Error ? e.message : "Não foi possível carregar o job");
+      }
     };
     tick();
     const iv = setInterval(() => { if (!stop) tick(); }, 1500);
@@ -88,7 +90,7 @@ function JobDetailPage() {
         <div className="flex items-center gap-3">
           <Button asChild variant="ghost" size="sm"><Link to="/sync"><ArrowLeft className="h-4 w-4 mr-1" />Voltar</Link></Button>
           <div>
-            <h1 className="text-2xl font-semibold">Job {jobId.slice(0, 8)}</h1>
+            <h1 className="text-2xl font-semibold">Sincronização #{jobId.slice(0, 8)}</h1>
             <p className="text-sm text-muted-foreground">Acompanhamento em tempo real</p>
           </div>
         </div>
@@ -98,14 +100,19 @@ function JobDetailPage() {
         </Badge>
       </div>
 
-      {err && <div className="text-sm text-red-500">{err}</div>}
+      {err && (
+        <div className="flex items-center justify-between gap-3 rounded border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
+          <span>{err}</span>
+          <Button size="sm" variant="outline" onClick={() => window.location.reload()}>Tentar novamente</Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Progresso</CardTitle>
             <div className="text-sm text-muted-foreground">
-              {job?.progress ?? 0}% · {job?.inserted ?? 0}/{job?.total_items ?? 0} itens
+               {job?.progress ?? 0}% · {Math.round(((job?.progress ?? 0) / 100) * (job?.total_items ?? 0))}/{job?.total_items ?? 0} itens
             </div>
           </div>
         </CardHeader>

@@ -166,23 +166,53 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
         }
 
         totals = {"inseridos": 0, "atualizados": 0, "skipped": 0, "errors": 0, "orphans_removed": 0}
-        state = {"done": 0}
+        breakdown = {
+            "canais": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
+            "filmes": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
+            "series": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
+        }
+        category_offsets = {
+            "canais": 0,
+            "filmes": len(parsed["canais"]),
+            "series": len(parsed["canais"]) + len(parsed["filmes"]),
+        }
 
-        def prog(done, tot, msg):
-            state["done"] += 1
-            if state["done"] % 5 == 0:
-                pct = int((done / max(tot, 1)) * 100)
-                _job_update(tenant_schema, job_id, progress=pct, log_line=msg)
+        def progress_for(category: str):
+            last_reported = {"value": -1}
+
+            def _progress(done, _category_total, msg):
+                overall_done = min(total, category_offsets[category] + max(0, int(done)))
+                pct = min(99, int((overall_done / max(total, 1)) * 100))
+                if pct >= last_reported["value"] + 1:
+                    last_reported["value"] = pct
+                    _job_update(tenant_schema, job_id, progress=pct, log_line=msg)
+
+            return _progress
+
+        def save_category(category: str, result: dict):
+            breakdown[category] = {
+                "inserted": result.get("inseridos", 0),
+                "updated": result.get("atualizados", 0),
+                "skipped": result.get("skipped", 0),
+                "deleted": result.get("orphans_removed", 0),
+                "errors": result.get("errors", 0),
+            }
+            _job_update(
+                tenant_schema, job_id,
+                inserted=totals["inseridos"], skipped=totals["skipped"], errors=totals["errors"],
+                result=json.dumps(breakdown),
+            )
 
         if parsed["canais"]:
             _job_update(tenant_schema, job_id, log_line=f"canais modo={mode_canais}")
             r = importer.importar_canais(
                 xui_conf, parsed["canais"], map_live,
                 bouquet_ids=bq_canais, server_id=server_id,
-                criar_categorias=criar_cats, mode=mode_canais, opts=opts, progress=prog,
+                criar_categorias=criar_cats, mode=mode_canais, opts=opts, progress=progress_for("canais"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
+            save_category("canais", r)
             _job_update(tenant_schema, job_id,
                         log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
 
@@ -190,15 +220,16 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             if usar_tmdb:
                 _job_update(tenant_schema, job_id, log_line=f"TMDB filmes: {len(parsed['filmes'])} títulos ({tmdb_lang})")
                 importer.enrich_filmes_com_tmdb(parsed["filmes"], api_key=tmdb_key,
-                                                 language=tmdb_lang, progress=prog)
+                                                 language=tmdb_lang, progress=progress_for("filmes"))
             _job_update(tenant_schema, job_id, log_line=f"filmes modo={mode_filmes}")
             r = importer.importar_filmes(
                 xui_conf, parsed["filmes"], map_movie,
                 bouquet_ids=bq_filmes, server_id=server_id,
-                criar_categorias=criar_cats, mode=mode_filmes, opts=opts, progress=prog,
+                criar_categorias=criar_cats, mode=mode_filmes, opts=opts, progress=progress_for("filmes"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
+            save_category("filmes", r)
             _job_update(tenant_schema, job_id,
                         log_line=f"filmes: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
 
@@ -209,10 +240,11 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 bouquet_ids=bq_series, server_id=server_id,
                 criar_categorias=criar_cats, mode=mode_series, opts=opts,
                 usar_tmdb=usar_tmdb, tmdb_api_key=tmdb_key, tmdb_language=tmdb_lang,
-                progress=prog,
+                progress=progress_for("series"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
+            save_category("series", r)
             _job_update(tenant_schema, job_id,
                         log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
 
@@ -224,7 +256,7 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             tenant_schema, job_id, status="success", progress=100,
             inserted=totals["inseridos"], skipped=totals["skipped"], errors=totals["errors"],
             finished_at=datetime.now(timezone.utc),
-            result=json.dumps({**totals, "elapsed_s": elapsed}),
+            result=json.dumps({**breakdown, "summary": totals, "elapsed_s": elapsed}),
             log_line=f"concluído em {elapsed}s",
         )
         with _sync_engine().begin() as conn:
