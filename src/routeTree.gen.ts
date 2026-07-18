@@ -14,6 +14,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedUsuariosRouteImport } from './routes/_authenticated.usuarios'
+import { Route as AuthenticatedSyncRouteImport } from './routes/_authenticated.sync'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated.dashboard'
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated.configuracoes'
 import { Route as AuthenticatedCanaisRouteImport } from './routes/_authenticated.canais'
@@ -45,6 +46,11 @@ const AuthenticatedUsuariosRoute = AuthenticatedUsuariosRouteImport.update({
   path: '/usuarios',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSyncRoute = AuthenticatedSyncRouteImport.update({
+  id: '/sync',
+  path: '/sync',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
   id: '/dashboard',
   path: '/dashboard',
@@ -67,15 +73,15 @@ const AuthenticatedBannersRoute = AuthenticatedBannersRouteImport.update({
   getParentRoute: () => AuthenticatedRoute,
 } as any)
 const AuthenticatedSyncIndexRoute = AuthenticatedSyncIndexRouteImport.update({
-  id: '/sync/',
-  path: '/sync/',
-  getParentRoute: () => AuthenticatedRoute,
+  id: '/',
+  path: '/',
+  getParentRoute: () => AuthenticatedSyncRoute,
 } as any)
 const AuthenticatedSyncJobsJobIdRoute =
   AuthenticatedSyncJobsJobIdRouteImport.update({
-    id: '/sync/jobs/$jobId',
-    path: '/sync/jobs/$jobId',
-    getParentRoute: () => AuthenticatedRoute,
+    id: '/jobs/$jobId',
+    path: '/jobs/$jobId',
+    getParentRoute: () => AuthenticatedSyncRoute,
   } as any)
 
 export interface FileRoutesByFullPath {
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
+  '/sync': typeof AuthenticatedSyncRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
   '/sync/': typeof AuthenticatedSyncIndexRoute
   '/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
@@ -112,6 +119,7 @@ export interface FileRoutesById {
   '/_authenticated/canais': typeof AuthenticatedCanaisRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
+  '/_authenticated/sync': typeof AuthenticatedSyncRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
   '/_authenticated/sync/': typeof AuthenticatedSyncIndexRoute
   '/_authenticated/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
@@ -126,6 +134,7 @@ export interface FileRouteTypes {
     | '/canais'
     | '/configuracoes'
     | '/dashboard'
+    | '/sync'
     | '/usuarios'
     | '/sync/'
     | '/sync/jobs/$jobId'
@@ -151,6 +160,7 @@ export interface FileRouteTypes {
     | '/_authenticated/canais'
     | '/_authenticated/configuracoes'
     | '/_authenticated/dashboard'
+    | '/_authenticated/sync'
     | '/_authenticated/usuarios'
     | '/_authenticated/sync/'
     | '/_authenticated/sync/jobs/$jobId'
@@ -200,6 +210,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUsuariosRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sync': {
+      id: '/_authenticated/sync'
+      path: '/sync'
+      fullPath: '/sync'
+      preLoaderRoute: typeof AuthenticatedSyncRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
@@ -230,29 +247,41 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/sync/': {
       id: '/_authenticated/sync/'
-      path: '/sync'
+      path: '/'
       fullPath: '/sync/'
       preLoaderRoute: typeof AuthenticatedSyncIndexRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedSyncRoute
     }
     '/_authenticated/sync/jobs/$jobId': {
       id: '/_authenticated/sync/jobs/$jobId'
-      path: '/sync/jobs/$jobId'
+      path: '/jobs/$jobId'
       fullPath: '/sync/jobs/$jobId'
       preLoaderRoute: typeof AuthenticatedSyncJobsJobIdRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof AuthenticatedSyncRoute
     }
   }
 }
+
+interface AuthenticatedSyncRouteChildren {
+  AuthenticatedSyncIndexRoute: typeof AuthenticatedSyncIndexRoute
+  AuthenticatedSyncJobsJobIdRoute: typeof AuthenticatedSyncJobsJobIdRoute
+}
+
+const AuthenticatedSyncRouteChildren: AuthenticatedSyncRouteChildren = {
+  AuthenticatedSyncIndexRoute: AuthenticatedSyncIndexRoute,
+  AuthenticatedSyncJobsJobIdRoute: AuthenticatedSyncJobsJobIdRoute,
+}
+
+const AuthenticatedSyncRouteWithChildren =
+  AuthenticatedSyncRoute._addFileChildren(AuthenticatedSyncRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedBannersRoute: typeof AuthenticatedBannersRoute
   AuthenticatedCanaisRoute: typeof AuthenticatedCanaisRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedSyncRoute: typeof AuthenticatedSyncRouteWithChildren
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
-  AuthenticatedSyncIndexRoute: typeof AuthenticatedSyncIndexRoute
-  AuthenticatedSyncJobsJobIdRoute: typeof AuthenticatedSyncJobsJobIdRoute
 }
 
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
@@ -260,9 +289,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCanaisRoute: AuthenticatedCanaisRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
+  AuthenticatedSyncRoute: AuthenticatedSyncRouteWithChildren,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
-  AuthenticatedSyncIndexRoute: AuthenticatedSyncIndexRoute,
-  AuthenticatedSyncJobsJobIdRoute: AuthenticatedSyncJobsJobIdRoute,
 }
 
 const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
