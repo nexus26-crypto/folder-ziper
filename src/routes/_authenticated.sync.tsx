@@ -395,8 +395,11 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
             <Step4Review name={name} method={method} m3uUrl={m3uUrl} host={host}
               xui={xuis.find(x => x.id === xuiId) ?? null}
               mapping={mapping} autoSync={autoSync} setAutoSync={setAutoSync}
-              cron={cron} setCron={setCron} />
+              cron={cron} setCron={setCron}
+              preview={preview} previewing={previewing} onPreview={runPreview}
+              force={force} setForce={setForce} />
           )}
+
           {step === 5 && (
             <Step5Done sourceId={createdSourceId ?? source?.id ?? ""} jobId={createdJobId} onClose={() => onOpenChange(false)} />
           )}
