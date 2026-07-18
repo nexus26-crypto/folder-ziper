@@ -280,7 +280,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 if k in r: totals[k] += r[k]
             save_category("canais", r)
             _job_update(tenant_schema, job_id,
-                        log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+                        log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} del={r.get('deleted_pre',0)} orph={r.get('orphans_removed',0)}")
+
 
         if parsed["filmes"]:
             if usar_tmdb:
