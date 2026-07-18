@@ -34,9 +34,10 @@ def cursor_from(config: dict):
         except Exception: pass
 
 
-def detect_structure(cur) -> dict[str, Any]:
+def detect_structure(cur, panel_type: str | None = None) -> dict[str, Any]:
+    """Autodetect ou honra um panel_type manual: auto|xtream_codes|xui_one|xui_r22."""
     est = {"tabela_servidores": None, "tabela_streams_servers": None,
-           "tem_series": False, "versao": "desconhecida"}
+           "tem_series": False, "versao": "desconhecida", "panel_type": panel_type or "auto"}
     cur.execute("SHOW TABLES")
     tabs = [t[0].lower() for t in cur.fetchall()]
     if "streaming_servers" in tabs: est["tabela_servidores"] = "streaming_servers"
@@ -44,16 +45,30 @@ def detect_structure(cur) -> dict[str, Any]:
     if "streams_servers" in tabs: est["tabela_streams_servers"] = "streams_servers"
     elif "stream_servers" in tabs: est["tabela_streams_servers"] = "stream_servers"
     est["tem_series"] = "series" in tabs
-    if "reg_users" in tabs: est["versao"] = "XUI ONE"
-    elif "users" in tabs and "streaming_servers" in tabs: est["versao"] = "Xtream Codes"
-    elif "users" in tabs and "servers" in tabs: est["versao"] = "XUI Moderno"
+
+    # Override manual — usuário confirmou o tipo
+    if panel_type == "xtream_codes":
+        est["versao"] = "Xtream Codes (manual)"
+        est["tabela_servidores"] = est["tabela_servidores"] or "streaming_servers"
+    elif panel_type == "xui_one":
+        est["versao"] = "XUI ONE (manual)"
+        est["tabela_servidores"] = est["tabela_servidores"] or "streaming_servers"
+    elif panel_type == "xui_r22":
+        est["versao"] = "XUI ONE r22+ (manual)"
+        est["tabela_servidores"] = est["tabela_servidores"] or "servers"
+    else:
+        # auto
+        if "reg_users" in tabs: est["versao"] = "XUI ONE"
+        elif "users" in tabs and "streaming_servers" in tabs: est["versao"] = "Xtream Codes"
+        elif "users" in tabs and "servers" in tabs: est["versao"] = "XUI ONE r22+"
     return est
+
 
 
 def test_connection(config: dict) -> dict:
     try:
         with cursor_from(config) as (_conn, cur):
-            est = detect_structure(cur)
+            est = detect_structure(cur, config.get("panel_type"))
             return {
                 "ok": True, "version": est["versao"], "structure": est,
                 "servers": get_servers(cur, est), "bouquets": get_bouquets(cur),
@@ -65,6 +80,7 @@ def test_connection(config: dict) -> dict:
             }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
 
 
 def get_servers(cur, est: dict) -> list[dict]:

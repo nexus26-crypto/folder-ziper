@@ -1,7 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody } from "@/lib/api/sync";
+import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody, type SyncPreview, type PreviewCounts } from "@/lib/api/sync";
 import { xuiApi, type XuiConnection, type XuiMeta } from "@/lib/api/xui";
 import { ApiError } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -108,11 +108,11 @@ function SyncPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Sync</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Importa canais, filmes e séries de M3U ou API Xtream direto no seu XUI.
+            Importa canais, filmes e séries de M3U ou API Xtream direto no seu painel Xtream Codes / XUI ONE.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild><Link to="/configuracoes">Conexões XUI</Link></Button>
+          <Button variant="outline" asChild><Link to="/configuracoes">Painéis Xtream/XUI</Link></Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Nova sincronia</Button>
         </div>
       </div>
@@ -120,8 +120,9 @@ function SyncPage() {
       {xuis.length === 0 && (
         <Card className="border-yellow-500/40 bg-yellow-500/5">
           <CardContent className="py-4 text-sm">
-            Você ainda não cadastrou nenhuma conexão XUI de destino.{" "}
+            Você ainda não cadastrou nenhum painel de destino (Xtream Codes ou XUI ONE).{" "}
             <Link to="/configuracoes" className="underline font-medium">Cadastrar agora</Link>
+
           </CardContent>
         </Card>
       )}
@@ -133,7 +134,7 @@ function SyncPage() {
             <TableHeader>
               <TableRow>
                 <TableHead>Nome</TableHead><TableHead>Tipo</TableHead>
-                <TableHead>Destino XUI</TableHead><TableHead>Auto</TableHead>
+                <TableHead>Painel destino</TableHead><TableHead>Auto</TableHead>
                 <TableHead>Última sync</TableHead><TableHead className="w-56" />
               </TableRow>
             </TableHeader>
@@ -323,9 +324,10 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
         await syncApi.updateSource(sid, updateBody);
       }
       if (triggerNow && sid) {
-        const job = await syncApi.trigger(sid);
+        const job = await syncApi.trigger(sid, force);
         setCreatedJobId(job.id);
       }
+
       onDone();
       return true;
     } catch (e) {
@@ -334,10 +336,29 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
     } finally { setSaving(false); }
   }
 
+  const [preview, setPreview] = useState<SyncPreview | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [force, setForce] = useState(false);
+
+  async function runPreview() {
+    setPreviewing(true);
+    try {
+      const okSave = await saveAndMaybeTrigger(false);
+      if (!okSave) return;
+      const sid = source?.id ?? createdSourceId;
+      if (!sid) return;
+      const pv = await syncApi.preview(sid);
+      setPreview(pv);
+    } catch (e) {
+      toast.error(e instanceof ApiError ? e.message : "Erro ao gerar preview");
+    } finally { setPreviewing(false); }
+  }
+
   async function handleFinish() {
     const ok = await saveAndMaybeTrigger(true);
     if (ok) setStep(5);
   }
+
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -374,8 +395,11 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
             <Step4Review name={name} method={method} m3uUrl={m3uUrl} host={host}
               xui={xuis.find(x => x.id === xuiId) ?? null}
               mapping={mapping} autoSync={autoSync} setAutoSync={setAutoSync}
-              cron={cron} setCron={setCron} />
+              cron={cron} setCron={setCron}
+              preview={preview} previewing={previewing} onPreview={runPreview}
+              force={force} setForce={setForce} />
           )}
+
           {step === 5 && (
             <Step5Done sourceId={createdSourceId ?? source?.id ?? ""} jobId={createdJobId} onClose={() => onOpenChange(false)} />
           )}
@@ -496,7 +520,7 @@ function Step2Source(props: {
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Painel Principal" />
         </div>
         <div className="space-y-1">
-          <Label>Destino XUI *</Label>
+          <Label>Painel de destino *</Label>
           <Select value={xuiId} onValueChange={setXuiId}>
             <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
             <SelectContent>
@@ -552,8 +576,9 @@ function Step3Mapping({ mapping, setMapping, meta, loading }: {
     setMapping({ ...mapping, [key]: next });
   };
 
-  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Consultando XUI…</div>;
-  if (!meta) return <div className="py-8 text-center text-sm text-muted-foreground">Selecione uma conexão XUI válida antes.</div>;
+  if (loading) return <div className="py-8 text-center text-sm text-muted-foreground">Consultando painel Xtream/XUI…</div>;
+  if (!meta) return <div className="py-8 text-center text-sm text-muted-foreground">Selecione um painel de destino válido antes.</div>;
+
 
   return (
     <div className="space-y-6">
@@ -609,7 +634,7 @@ function Step3Mapping({ mapping, setMapping, meta, loading }: {
       </SectionCard>
 
       <SectionCard title="Duplicatas e órfãos (avançado)">
-        <ToggleRow label="Criar categorias automaticamente" desc="Se a categoria não existir no XUI, é criada com o mesmo nome."
+        <ToggleRow label="Criar categorias automaticamente" desc="Se a categoria não existir no painel, é criada com o mesmo nome."
           checked={mapping.criar_categorias} onChange={v => update("criar_categorias", v)} />
         <ToggleRow label="Dedup por URL da fonte (ignora título)"
           desc="Útil se o mesmo filme aparece com nomes diferentes mas mesma URL."
@@ -691,7 +716,7 @@ function MultiBouquet({ label, items, selected, onToggle }: {
     <div className="space-y-1.5">
       <Label>{label} <span className="text-xs text-muted-foreground">({selected.length} selecionado{selected.length === 1 ? "" : "s"})</span></Label>
       {items.length === 0 ? (
-        <p className="text-xs text-muted-foreground">Nenhum bouquet encontrado nesse XUI.</p>
+        <p className="text-xs text-muted-foreground">Nenhum bouquet encontrado nesse painel.</p>
       ) : (
         <div className="max-h-40 overflow-y-auto rounded border p-2 space-y-1">
           {items.map(b => {
@@ -709,12 +734,16 @@ function MultiBouquet({ label, items, selected, onToggle }: {
   );
 }
 
-// ---------- Step 4: revisão ----------
-function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAutoSync, cron, setCron }: {
+// ---------- Step 4: revisão + preview ----------
+function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAutoSync, cron, setCron,
+  preview, previewing, onPreview, force, setForce,
+}: {
   name: string; method: MethodChoice; m3uUrl: string; host: string;
   xui: XuiConnection | null; mapping: Mapping;
   autoSync: boolean; setAutoSync: (v: boolean) => void;
   cron: string; setCron: (v: string) => void;
+  preview: SyncPreview | null; previewing: boolean; onPreview: () => void;
+  force: boolean; setForce: (v: boolean) => void;
 }) {
   const bqCount = mapping.bouquets_canais.length + mapping.bouquets_filmes.length + mapping.bouquets_series.length;
   return (
@@ -726,7 +755,7 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
         <Row k="Método">{method}</Row>
         {method === "m3u_url" && <Row k="URL M3U" mono>{m3uUrl}</Row>}
         {method === "xtream_api" && <Row k="Host" mono>{host}</Row>}
-        <Row k="XUI de destino">{xui ? `${xui.name} — ${xui.host}:${xui.port}` : "—"}</Row>
+        <Row k="Painel destino">{xui ? `${xui.name} — ${xui.host}:${xui.port}` : "—"}</Row>
         <Row k="DB / usuário">{xui ? `${xui.db_name} / ${xui.db_user}` : "—"}</Row>
         <Row k="Server ID">{mapping.server_id}</Row>
         <Row k="Modos">canais: <b>{mapping.mode_canais}</b> · filmes: <b>{mapping.mode_filmes}</b> · séries: <b>{mapping.mode_series}</b></Row>
@@ -734,10 +763,45 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
         <Row k="TMDB">{mapping.usar_tmdb ? `sim (${mapping.tmdb_language})` : "não"}</Row>
       </div>
 
+      {/* Preview (dry-run) */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-sm">Preview (dry-run)</p>
+            <p className="text-xs text-muted-foreground">Simula a sync no painel de destino. Nada é gravado.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={onPreview} disabled={previewing}>
+            {previewing ? "Analisando…" : preview ? "Recalcular" : "Ver preview"}
+          </Button>
+        </div>
+        {preview && (
+          <>
+            {preview.unchanged_since_last && (
+              <div className="rounded border border-blue-500/40 bg-blue-500/5 p-2 text-xs">
+                ⚡ Conteúdo <b>idêntico</b> à última sincronia (hash <code>{preview.content_hash.slice(0, 8)}</code>).
+                Sync será pulada automaticamente — ative "forçar mesmo assim" abaixo pra rodar de qualquer forma.
+              </div>
+            )}
+            {preview.error && <p className="text-xs text-destructive">{preview.error}</p>}
+            {preview.warnings.map((w, i) => <p key={i} className="text-xs text-yellow-600">⚠ {w}</p>)}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <PreviewCard title="Canais" icon="📺" data={preview.canais} />
+              <PreviewCard title="Filmes" icon="🎬" data={preview.filmes} />
+              <PreviewCard title="Séries" icon="📼" data={preview.series} />
+            </div>
+          </>
+        )}
+        {preview?.unchanged_since_last && (
+          <ToggleRow label="Forçar sync mesmo com conteúdo idêntico"
+            desc="Ignora o hash e roda a sincronização de qualquer maneira."
+            checked={force} onChange={setForce} />
+        )}
+      </div>
+
       <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/5 p-3 text-sm">
         <strong>⚠️ Faça backup do banco de dados AGORA antes de começar.</strong>
         <p className="text-xs text-muted-foreground mt-1">
-          Apesar do sistema estar testado, alterações em massa podem afetar dados existentes. Caso perca dados sem backup, não é possível recuperar.
+          Apesar do sistema estar testado, alterações em massa podem afetar dados existentes.
         </p>
       </div>
 
@@ -755,6 +819,40 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
     </div>
   );
 }
+
+function PreviewCard({ title, icon, data }: { title: string; icon: string; data: PreviewCounts }) {
+  if (!data || !data.total) {
+    return (
+      <div className="rounded-md border p-3 text-xs">
+        <p className="font-medium mb-1">{icon} {title}</p>
+        <p className="text-muted-foreground">— nenhum item na fonte —</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border p-3 text-xs space-y-1">
+      <p className="font-medium">{icon} {title} <span className="text-muted-foreground">({data.total})</span></p>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="default" className="bg-green-600 hover:bg-green-600">+{data.to_insert} novo</Badge>
+        {data.to_update > 0 && <Badge variant="secondary">~{data.to_update} atual.</Badge>}
+        {data.to_delete > 0 && <Badge variant="destructive">-{data.to_delete} deletar</Badge>}
+      </div>
+      {data.samples_insert.length > 0 && (
+        <details className="text-[11px] text-muted-foreground">
+          <summary className="cursor-pointer">Exemplos de inserção</summary>
+          <ul className="list-disc pl-4 mt-1">{data.samples_insert.map(s => <li key={s} className="truncate">{s}</li>)}</ul>
+        </details>
+      )}
+      {data.samples_delete.length > 0 && (
+        <details className="text-[11px] text-destructive">
+          <summary className="cursor-pointer">Exemplos que seriam DELETADOS</summary>
+          <ul className="list-disc pl-4 mt-1">{data.samples_delete.map(s => <li key={s} className="truncate">{s}</li>)}</ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 
 function Row({ k, children, mono }: { k: string; children: React.ReactNode; mono?: boolean }) {
   return (

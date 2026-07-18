@@ -68,10 +68,31 @@ export const syncApi = {
     if (xui_connection_id) fd.append("xui_connection_id", xui_connection_id);
     return api<XtreamSource>("/api/v1/sync/sources/upload-m3u", { method: "POST", body: fd });
   },
-  trigger: (source_id: string) =>
-    api<SyncJob>("/api/v1/sync/trigger", { method: "POST", body: { source_id } }),
+  trigger: (source_id: string, force = false) =>
+    api<SyncJob>("/api/v1/sync/trigger", { method: "POST", body: { source_id, force } }),
+  preview: (source_id: string) =>
+    api<SyncPreview>(`/api/v1/sync/sources/${source_id}/preview`, { method: "POST" }),
   listJobs: (limit = 50) =>
     api<{ items: SyncJob[]; total: number }>(`/api/v1/sync/jobs?limit=${limit}`),
   getJob: (id: string) => api<SyncJob>(`/api/v1/sync/jobs/${id}`),
   getJobLog: (id: string) => api<{ log: string; status: string; progress: number }>(`/api/v1/sync/jobs/${id}/log`),
 };
+
+export type PreviewCounts = {
+  total: number; to_insert: number; to_update: number;
+  to_delete: number; unchanged: number;
+  samples_insert: string[]; samples_update: string[]; samples_delete: string[];
+};
+
+export type SyncPreview = {
+  ok: boolean;
+  content_hash: string;
+  unchanged_since_last: boolean;
+  total_parsed: { canais: number; filmes: number; series: number; episodios: number };
+  canais: PreviewCounts;
+  filmes: PreviewCounts;
+  series: PreviewCounts;
+  warnings: string[];
+  error: string | null;
+};
+

@@ -10,17 +10,24 @@ from app.schemas.xui import (
 )
 from app.services.xtream import xui_db
 
-router = APIRouter(prefix="/xui-connections", tags=["xui"])
+router = APIRouter(prefix="/xui-connections", tags=["panels"])
 
 
 def _out(r) -> XuiConnectionOut:
     return XuiConnectionOut(
-        id=r.id, name=r.name, host=r.host, port=r.port, db_name=r.db_name,
+        id=r.id, name=r.name, panel_type=r.panel_type or "auto",
+        host=r.host, port=r.port, db_name=r.db_name,
         db_user=r.db_user, is_default=r.is_default,
         last_test_at=r.last_test_at, last_test_ok=r.last_test_ok,
         last_test_error=r.last_test_error, detected_version=r.detected_version,
         created_at=r.created_at,
     )
+
+
+def _cfg(row) -> dict:
+    return {"host": row.host, "port": row.port, "db_name": row.db_name,
+            "db_user": row.db_user, "db_pass": decrypt(row.db_pass_enc),
+            "panel_type": row.panel_type or "auto"}
 
 
 @router.get("", response_model=list[XuiConnectionOut])
@@ -34,11 +41,12 @@ async def create_conn(payload: XuiConnectionCreate, db: DBSession, _t: CurrentTe
     if payload.is_default:
         await db.execute(text("UPDATE xui_connections SET is_default = false"))
     row = (await db.execute(text("""
-        INSERT INTO xui_connections (name, host, port, db_name, db_user, db_pass_enc, is_default)
-        VALUES (:name,:host,:port,:db_name,:db_user,:db_pass_enc,:is_default)
+        INSERT INTO xui_connections (name, panel_type, host, port, db_name, db_user, db_pass_enc, is_default)
+        VALUES (:name,:panel_type,:host,:port,:db_name,:db_user,:db_pass_enc,:is_default)
         RETURNING *
     """), {
-        "name": payload.name, "host": payload.host, "port": payload.port,
+        "name": payload.name, "panel_type": payload.panel_type,
+        "host": payload.host, "port": payload.port,
         "db_name": payload.db_name, "db_user": payload.db_user,
         "db_pass_enc": encrypt(payload.db_pass), "is_default": payload.is_default,
     })).mappings().one()
@@ -74,9 +82,7 @@ async def delete_conn(conn_id: UUID, db: DBSession, _t: CurrentTenant, _u: Curre
 async def test_conn(conn_id: UUID, db: DBSession, _t: CurrentTenant, _u: CurrentUser):
     row = (await db.execute(text("SELECT * FROM xui_connections WHERE id = :id"), {"id": conn_id})).mappings().first()
     if not row: raise HTTPException(404, "not found")
-    cfg = {"host": row.host, "port": row.port, "db_name": row.db_name,
-           "db_user": row.db_user, "db_pass": decrypt(row.db_pass_enc)}
-    result = xui_db.test_connection(cfg)
+    result = xui_db.test_connection(_cfg(row))
     await db.execute(text("""
         UPDATE xui_connections SET last_test_at = :ts, last_test_ok = :ok,
                last_test_error = :err, detected_version = :ver
@@ -95,9 +101,7 @@ async def get_meta(conn_id: UUID, db: DBSession, _t: CurrentTenant, _u: CurrentU
     """Retorna bouquets/servers/categorias — usado pra tela de mapeamento."""
     row = (await db.execute(text("SELECT * FROM xui_connections WHERE id = :id"), {"id": conn_id})).mappings().first()
     if not row: raise HTTPException(404, "not found")
-    cfg = {"host": row.host, "port": row.port, "db_name": row.db_name,
-           "db_user": row.db_user, "db_pass": decrypt(row.db_pass_enc)}
-    result = xui_db.test_connection(cfg)
+    result = xui_db.test_connection(_cfg(row))
     if not result["ok"]:
         raise HTTPException(502, result.get("error") or "connection failed")
     return result
