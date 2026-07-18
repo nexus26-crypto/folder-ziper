@@ -311,7 +311,9 @@ def importar_filmes(
 
     _tick(progress, total, total, f"filmes concluído: +{inseridos} ~{atualizados}")
     return {"inseridos": inseridos, "atualizados": atualizados, "skipped": skipped,
-            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed}
+            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed,
+            "deleted_pre": removed_pre}
+
 
 
 def enrich_filmes_com_tmdb(filmes: list[dict], api_key: str | None = None,
