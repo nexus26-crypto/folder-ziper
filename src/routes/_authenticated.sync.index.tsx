@@ -355,8 +355,8 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   async function runPreview() {
     setPreviewing(true);
     try {
-      const okSave = await saveAndMaybeTrigger(false);
-      if (!okSave) return;
+      const res = await saveAndMaybeTrigger(false);
+      if (!res.ok) return;
       const sid = source?.id ?? createdSourceId;
       if (!sid) return;
       const pv = await syncApi.preview(sid);
@@ -367,13 +367,11 @@ function SyncWizard({ open, onOpenChange, xuis, source, onDone }: {
   }
 
   async function handleFinish() {
-    const ok = await saveAndMaybeTrigger(true);
-    if (!ok) return;
+    const res = await saveAndMaybeTrigger(true);
+    if (!res.ok) return;
     onOpenChange(false);
-    // Pega o jobId direto do estado (setCreatedJobId foi chamado dentro de saveAndMaybeTrigger)
-    const jid = createdJobId;
-    if (jid) {
-      navigate({ to: "/sync/jobs/$jobId", params: { jobId: jid } });
+    if (res.jobId) {
+      navigate({ to: "/sync/jobs/$jobId", params: { jobId: res.jobId } });
     } else {
       setStep(5);
     }
