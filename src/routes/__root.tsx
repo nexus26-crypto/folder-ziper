@@ -78,19 +78,20 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "VyntrixSync — Painel SaaS multi-tenant" },
-      { name: "description", content: "Plataforma SaaS profissional para sincronização Xtream/XUI, gestão de canais, VOD, séries e EPG." },
-      { property: "og:title", content: "VyntrixSync" },
-      { property: "og:description", content: "Plataforma SaaS profissional para gestão de canais, EPG e syncs." },
+      { name: "theme-color", content: "#0e0e0e" },
+      { title: "VODSystem — Sincronização Xtream / XUI" },
+      { name: "description", content: "VODSystem: plataforma profissional para sincronização Xtream/XUI, gestão de canais, VOD, séries e EPG." },
+      { property: "og:title", content: "VODSystem" },
+      { property: "og:description", content: "Sincronização Xtream/XUI, canais, VOD, séries e EPG em um só painel." },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
     ],
     links: [
-      {
-        rel: "stylesheet",
-        href: appCss,
-      },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "stylesheet", href: appCss },
+      { rel: "icon", type: "image/png", href: "/favicon.png" },
+      { rel: "preconnect", href: "https://fonts.googleapis.com" },
+      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Rubik:wght@400;500;600;700;800&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -101,7 +102,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="pt-BR" className="dark">
       <head>
         <HeadContent />
       </head>
