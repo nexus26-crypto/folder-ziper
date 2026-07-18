@@ -24,16 +24,31 @@ def _sync_engine():
     return _engine
 
 
+MAX_LOG_LINES = 2000  # cap log_tail para não estourar TEXT do postgres
+
+
 def _job_update(schema: str, job_id: str, **fields):
-    """UPDATE incremental em sync_jobs. Concatena log_tail se vier."""
+    """UPDATE incremental em sync_jobs. Concatena log_tail se vier (string ou lista)."""
     log_line = fields.pop("log_line", None)
     sets, params = [], {"id": job_id}
     for k, v in fields.items():
         sets.append(f"{k} = :{k}")
         params[k] = v
-    if log_line:
-        sets.append("log_tail = COALESCE(log_tail,'') || :log_line")
-        params["log_line"] = f"[{datetime.now().strftime('%H:%M:%S')}] {log_line}\n"
+    if log_line is not None:
+        if isinstance(log_line, (list, tuple)):
+            lines = list(log_line)
+        else:
+            lines = [log_line]
+        ts = datetime.now().strftime('%H:%M:%S')
+        chunk = "".join(f"[{ts}] {ln}\n" for ln in lines if ln)
+        if chunk:
+            # append + trim ao final para manter só as últimas MAX_LOG_LINES linhas
+            sets.append(
+                "log_tail = array_to_string("
+                "(string_to_array(COALESCE(log_tail,'') || :log_chunk, E'\\n'))"
+                f"[GREATEST(1, array_length(string_to_array(COALESCE(log_tail,'') || :log_chunk, E'\\n'), 1) - {MAX_LOG_LINES}):], E'\\n')"
+            )
+            params["log_chunk"] = chunk
     if not sets:
         return
     q = f'UPDATE "{schema}".sync_jobs SET {", ".join(sets)} WHERE id = :id'
