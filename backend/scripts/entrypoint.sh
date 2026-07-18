@@ -10,7 +10,7 @@ case "$CMD" in
     echo "==> Iniciando API (gunicorn + uvicorn workers)"
     exec gunicorn app.main:app \
       -k uvicorn.workers.UvicornWorker \
-      -w "${WEB_CONCURRENCY:-4}" \
+      -w "${WEB_CONCURRENCY:-2}" \
       -b 0.0.0.0:8000 \
       --access-logfile - \
       --error-logfile -
@@ -20,14 +20,16 @@ case "$CMD" in
     exec celery -A app.workers.celery_app worker \
       -Q default \
       --loglevel=info \
-      --autoscale=10,2
+      --autoscale=4,1
+
     ;;
   worker-scraping)
     echo "==> Iniciando Celery worker (scraping queue)"
     exec celery -A app.workers.celery_app worker \
       -Q scraping \
       --loglevel=info \
-      --concurrency=2
+      --concurrency=1
+
     ;;
   beat)
     echo "==> Iniciando Celery beat scheduler"
