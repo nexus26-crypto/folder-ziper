@@ -24,7 +24,7 @@ def _sync_engine():
     return _engine
 
 
-MAX_LOG_LINES = 2000  # cap log_tail para não estourar TEXT do postgres
+MAX_LOG_LINES = 8000  # cap log_tail para não estourar TEXT do postgres
 
 
 def _job_update(schema: str, job_id: str, **fields):
