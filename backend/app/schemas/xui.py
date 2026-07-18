@@ -1,10 +1,14 @@
 from datetime import datetime
 from uuid import UUID
+from typing import Literal
 from pydantic import BaseModel, Field
+
+PanelType = Literal["auto", "xtream_codes", "xui_one", "xui_r22"]
 
 
 class XuiConnectionCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=120)
+    panel_type: PanelType = "auto"
     host: str = Field(..., min_length=1)
     port: int = Field(default=3306, ge=1, le=65535)
     db_name: str = Field(..., min_length=1)
@@ -15,6 +19,7 @@ class XuiConnectionCreate(BaseModel):
 
 class XuiConnectionUpdate(BaseModel):
     name: str | None = None
+    panel_type: PanelType | None = None
     host: str | None = None
     port: int | None = Field(default=None, ge=1, le=65535)
     db_name: str | None = None
@@ -26,6 +31,7 @@ class XuiConnectionUpdate(BaseModel):
 class XuiConnectionOut(BaseModel):
     id: UUID
     name: str
+    panel_type: PanelType
     host: str
     port: int
     db_name: str
