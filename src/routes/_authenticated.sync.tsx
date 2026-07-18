@@ -192,7 +192,7 @@ function SyncPage() {
                   <TableCell className="text-muted-foreground">{j.skipped}</TableCell>
                   <TableCell className={j.errors ? "text-destructive" : "text-muted-foreground"}>{j.errors}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(j.created_at).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell><Button size="sm" variant="ghost" onClick={() => setLogSheet(j)}><FileText className="h-4 w-4" /></Button></TableCell>
+                  <TableCell><Button asChild size="sm" variant="ghost"><Link to="/sync/jobs/$jobId" params={{ jobId: j.id }}><FileText className="h-4 w-4" /></Link></Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>
