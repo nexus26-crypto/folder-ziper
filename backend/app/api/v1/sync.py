@@ -125,20 +125,49 @@ async def trigger_sync(payload: TriggerSyncRequest, db: DBSession, tenant: Curre
     if not src: raise HTTPException(404, "source not found")
 
     row = (await db.execute(text("""
-        INSERT INTO sync_jobs (job_type, source_id, status)
-        VALUES ('source_sync', :sid, 'queued')
+        INSERT INTO sync_jobs (job_type, source_id, status, payload)
+        VALUES ('source_sync', :sid, 'queued', CAST(:pl AS jsonb))
         RETURNING *
-    """), {"sid": str(payload.source_id)})).mappings().one()
+    """), {"sid": str(payload.source_id), "pl": json.dumps({"force": payload.force})})).mappings().one()
     await db.commit()
 
     try:
         from app.workers.tasks_sync import run_source_sync
-        run_source_sync.delay(tenant.schema_name, str(row.id), str(payload.source_id))
+        run_source_sync.delay(tenant.schema_name, str(row.id), str(payload.source_id), payload.force)
     except Exception as e:
         await db.execute(text("UPDATE sync_jobs SET status='failed', error=:e WHERE id=:id"),
                          {"e": f"broker offline: {e}", "id": row.id})
         await db.commit()
     return _job(row)
+
+
+# --------------------- PREVIEW (dry-run) ---------------------
+
+@router.post("/sources/{source_id}/preview")
+async def preview_source(source_id: UUID, db: DBSession, _t: CurrentTenant, _u: CurrentUser):
+    src = (await db.execute(text("SELECT * FROM xtream_sources WHERE id = :id"), {"id": source_id})).mappings().first()
+    if not src: raise HTTPException(404, "source not found")
+    src_dict = dict(src)
+    mapping = src_dict.get("mapping") or {}
+    if isinstance(mapping, str):
+        try: mapping = json.loads(mapping)
+        except Exception: mapping = {}
+
+    xui_id = src_dict.get("xui_connection_id")
+    if xui_id:
+        xui = (await db.execute(text("SELECT * FROM xui_connections WHERE id = :id"), {"id": xui_id})).mappings().first()
+    else:
+        xui = (await db.execute(text("SELECT * FROM xui_connections WHERE is_default = true LIMIT 1"))).mappings().first()
+    if not xui: raise HTTPException(400, "nenhum painel Xtream/XUI cadastrado")
+
+    from app.core.crypto import decrypt as _dec
+    from app.services.xtream import preview as preview_svc
+    xui_conf = {"host": xui.host, "port": xui.port, "db_name": xui.db_name,
+                "db_user": xui.db_user, "db_pass": _dec(xui.db_pass_enc),
+                "panel_type": xui.panel_type or "auto"}
+    return preview_svc.build_preview(src_dict, xui_conf, mapping)
+
+
 
 
 @router.get("/jobs", response_model=SyncJobList)
