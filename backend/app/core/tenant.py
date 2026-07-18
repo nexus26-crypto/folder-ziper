@@ -67,6 +67,7 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
             created_at TIMESTAMPTZ NOT NULL DEFAULT now()
         );
     '''))
+    await conn.execute(text(f"ALTER TABLE \"{schema}\".xui_connections ADD COLUMN IF NOT EXISTS panel_type TEXT NOT NULL DEFAULT 'auto';"))
 
     # ---- xtream_sources: fonte de dados (M3U URL, M3U file, Xtream API) ----
     await conn.execute(text(f'''
@@ -91,10 +92,13 @@ async def create_tenant_schema(conn: AsyncConnection, schema: str) -> None:
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS auto_sync BOOLEAN NOT NULL DEFAULT false;'))
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS auto_sync_cron TEXT;'))
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS last_auto_run_at TIMESTAMPTZ;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS last_content_hash TEXT;'))
+    await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ADD COLUMN IF NOT EXISTS last_content_at TIMESTAMPTZ;'))
     # host/username/password/kind precisam virar NULLABLE (M3U puro não usa)
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN host DROP NOT NULL;'))
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN username DROP NOT NULL;'))
     await conn.execute(text(f'ALTER TABLE "{schema}".xtream_sources ALTER COLUMN password DROP NOT NULL;'))
+
 
     # ---- sync_jobs ----
     await conn.execute(text(f'''
