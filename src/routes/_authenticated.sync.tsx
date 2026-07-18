@@ -108,11 +108,11 @@ function SyncPage() {
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">Sync</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Importa canais, filmes e séries de M3U ou API Xtream direto no seu XUI.
+            Importa canais, filmes e séries de M3U ou API Xtream direto no seu painel Xtream Codes / XUI ONE.
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" asChild><Link to="/configuracoes">Conexões XUI</Link></Button>
+          <Button variant="outline" asChild><Link to="/configuracoes">Painéis Xtream/XUI</Link></Button>
           <Button onClick={openNew}><Plus className="h-4 w-4 mr-2" />Nova sincronia</Button>
         </div>
       </div>
@@ -120,8 +120,9 @@ function SyncPage() {
       {xuis.length === 0 && (
         <Card className="border-yellow-500/40 bg-yellow-500/5">
           <CardContent className="py-4 text-sm">
-            Você ainda não cadastrou nenhuma conexão XUI de destino.{" "}
+            Você ainda não cadastrou nenhum painel de destino (Xtream Codes ou XUI ONE).{" "}
             <Link to="/configuracoes" className="underline font-medium">Cadastrar agora</Link>
+
           </CardContent>
         </Card>
       )}
