@@ -23,11 +23,18 @@ from app.services.xtream.m3u_parser import extrair_nome_arquivo, extrair_extensa
 
 BATCH = 100
 ProgressCB = Callable[[int, int, str], None]
+LogItemCB = Callable[[str], None]
 
 
 def _tick(cb: ProgressCB | None, done: int, total: int, msg: str = ""):
     if cb:
         try: cb(done, total, msg)
+        except Exception: pass
+
+
+def _emit(cb: LogItemCB | None, line: str):
+    if cb:
+        try: cb(line)
         except Exception: pass
 
 
