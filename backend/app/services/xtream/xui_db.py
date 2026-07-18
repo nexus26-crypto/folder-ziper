@@ -68,7 +68,7 @@ def detect_structure(cur, panel_type: str | None = None) -> dict[str, Any]:
 def test_connection(config: dict) -> dict:
     try:
         with cursor_from(config) as (_conn, cur):
-            est = detect_structure(cur)
+            est = detect_structure(cur, config.get("panel_type"))
             return {
                 "ok": True, "version": est["versao"], "structure": est,
                 "servers": get_servers(cur, est), "bouquets": get_bouquets(cur),
@@ -80,6 +80,7 @@ def test_connection(config: dict) -> dict:
             }
     except Exception as e:
         return {"ok": False, "error": str(e)}
+
 
 
 def get_servers(cur, est: dict) -> list[dict]:
