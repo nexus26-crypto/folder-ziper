@@ -83,11 +83,52 @@ def _load_xui(schema: str, xui_id: str | None) -> dict | None:
     return r
 
 
-def _download_m3u(url: str) -> str:
-    with httpx.Client(timeout=120.0, follow_redirects=True) as c:
-        r = c.get(url)
-        r.raise_for_status()
-        return r.text
+def _download_m3u(url: str, log=None) -> str:
+    """Download M3U em streaming com retries e suporte a Range para retomar em quedas de conexão."""
+    timeout = httpx.Timeout(connect=30.0, read=300.0, write=60.0, pool=30.0)
+    headers = {"User-Agent": "VLC/3.0.20 LibVLC/3.0.20", "Accept": "*/*"}
+    max_attempts = 5
+    buf = bytearray()
+    total_expected: int | None = None
+    last_err: Exception | None = None
+    for attempt in range(1, max_attempts + 1):
+        try:
+            req_headers = dict(headers)
+            if buf and total_expected:
+                req_headers["Range"] = f"bytes={len(buf)}-"
+            with httpx.Client(timeout=timeout, follow_redirects=True, http2=False) as c:
+                with c.stream("GET", url, headers=req_headers) as r:
+                    if r.status_code not in (200, 206):
+                        r.raise_for_status()
+                    if r.status_code == 200:
+                        buf = bytearray()  # servidor não aceitou Range, recomeça
+                    cl = r.headers.get("Content-Length")
+                    if cl and cl.isdigit():
+                        total_expected = (len(buf) + int(cl)) if r.status_code == 206 else int(cl)
+                    for chunk in r.iter_bytes(chunk_size=64 * 1024):
+                        if chunk:
+                            buf.extend(chunk)
+            # Sucesso
+            if log:
+                log(f"download ok: {len(buf)} bytes (tentativa {attempt})")
+            return buf.decode("utf-8", errors="replace")
+        except (httpx.RemoteProtocolError, httpx.ReadError, httpx.ReadTimeout,
+                httpx.ConnectError, httpx.ConnectTimeout, httpx.WriteError) as e:
+            last_err = e
+            if log:
+                log(f"download interrompido em {len(buf)} bytes (tentativa {attempt}/{max_attempts}): {e} — tentando retomar em 3s")
+            time.sleep(3)
+            continue
+        except httpx.HTTPStatusError as e:
+            # 4xx não recupera; 5xx tenta de novo
+            last_err = e
+            if e.response.status_code < 500 or attempt == max_attempts:
+                raise
+            if log:
+                log(f"HTTP {e.response.status_code} tentando novamente ({attempt}/{max_attempts})")
+            time.sleep(3)
+            continue
+    raise RuntimeError(f"falha ao baixar M3U após {max_attempts} tentativas: {last_err}")
 
 
 @celery_app.task(name="app.workers.tasks_sync.run_source_sync", bind=True, max_retries=1)
