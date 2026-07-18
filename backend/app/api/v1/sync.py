@@ -124,6 +124,18 @@ async def trigger_sync(payload: TriggerSyncRequest, db: DBSession, tenant: Curre
     )).mappings().first()
     if not src: raise HTTPException(404, "source not found")
 
+    # 1 sync por vez por usuário/tenant — bloqueia se já há job em andamento
+    running = (await db.execute(text(
+        "SELECT id FROM sync_jobs WHERE status IN ('queued','running') "
+        "ORDER BY created_at DESC LIMIT 1"
+    ))).mappings().first()
+    if running:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Já existe uma sincronização em andamento (job {running['id']}). "
+                   "Aguarde ela concluir ou cancele antes de iniciar outra."
+        )
+
     row = (await db.execute(text("""
         INSERT INTO sync_jobs (job_type, source_id, status, payload)
         VALUES ('source_sync', :sid, 'queued', CAST(:pl AS jsonb))
@@ -139,6 +151,7 @@ async def trigger_sync(payload: TriggerSyncRequest, db: DBSession, tenant: Curre
                          {"e": f"broker offline: {e}", "id": row.id})
         await db.commit()
     return _job(row)
+
 
 
 # --------------------- PREVIEW (dry-run) ---------------------
