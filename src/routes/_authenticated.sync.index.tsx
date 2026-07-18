@@ -12,7 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/switch";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -71,7 +70,6 @@ function SyncPage() {
   const [xuis, setXuis] = useState<XuiConnection[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
   const [editingSource, setEditingSource] = useState<XtreamSource | null>(null);
-  const [logSheet, setLogSheet] = useState<SyncJob | null>(null);
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadAll = useCallback(async () => {
@@ -192,7 +190,13 @@ function SyncPage() {
                   <TableCell className="text-muted-foreground">{j.skipped}</TableCell>
                   <TableCell className={j.errors ? "text-destructive" : "text-muted-foreground"}>{j.errors}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(j.created_at).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell><Button asChild size="sm" variant="ghost"><Link to="/sync/jobs/$jobId" params={{ jobId: j.id }}><FileText className="h-4 w-4" /></Link></Button></TableCell>
+                  <TableCell className="text-right">
+                    <Button asChild size="sm" variant="outline">
+                      <Link to="/sync/jobs/$jobId" params={{ jobId: j.id }} aria-label={`Acompanhar job ${j.id}`}>
+                        <FileText className="h-4 w-4" />Acompanhar
+                      </Link>
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -204,7 +208,6 @@ function SyncPage() {
         open={wizardOpen} onOpenChange={setWizardOpen}
         xuis={xuis} source={editingSource} onDone={loadAll}
       />
-      {logSheet && <JobLogSheet job={logSheet} onOpenChange={o => !o && setLogSheet(null)} />}
     </div>
   );
 }
@@ -893,39 +896,3 @@ function Step5Done({ sourceId, jobId, onClose }: { sourceId: string; jobId: stri
   );
 }
 
-// ============================================================
-// JOB LOG
-// ============================================================
-function JobLogSheet({ job, onOpenChange }: { job: SyncJob; onOpenChange: (o: boolean) => void }) {
-  const [log, setLog] = useState(job.log_tail ?? "");
-  const [status, setStatus] = useState(job.status);
-  const [progress, setProgress] = useState(job.progress);
-
-  useEffect(() => {
-    if (!["queued", "pending", "running"].includes(status)) return;
-    const t = setInterval(async () => {
-      try {
-        const r = await syncApi.getJobLog(job.id);
-        setLog(r.log); setStatus(r.status as any); setProgress(r.progress);
-      } catch { /* silent */ }
-    }, 1500);
-    return () => clearInterval(t);
-  }, [job.id, status]);
-
-  return (
-    <Sheet open onOpenChange={onOpenChange}>
-      <SheetContent className="w-full sm:max-w-2xl overflow-y-auto">
-        <SheetHeader>
-          <SheetTitle>Job {job.id.slice(0, 8)}</SheetTitle>
-          <SheetDescription>
-            <Badge variant={statusColor[status] ?? "outline"}>{status}</Badge>
-            <span className="ml-2">{progress}%</span>
-          </SheetDescription>
-        </SheetHeader>
-        <pre className="mt-4 p-3 bg-muted rounded text-xs overflow-auto max-h-[70vh] whitespace-pre-wrap">
-          {log || "(sem log ainda)"}
-        </pre>
-      </SheetContent>
-    </Sheet>
-  );
-}
