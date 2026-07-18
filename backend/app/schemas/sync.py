@@ -78,8 +78,33 @@ class SyncJobOut(BaseModel):
 
 class TriggerSyncRequest(BaseModel):
     source_id: UUID
+    force: bool = False  # ignora incremental (hash) e roda mesmo se conteúdo idêntico
 
 
 class SyncJobList(BaseModel):
     items: list[SyncJobOut]
     total: int
+
+
+class PreviewCounts(BaseModel):
+    total: int = 0
+    to_insert: int = 0
+    to_update: int = 0
+    to_delete: int = 0  # orphans (só se mode=mirror ou remove_orphans)
+    unchanged: int = 0
+    samples_insert: list[str] = []
+    samples_update: list[str] = []
+    samples_delete: list[str] = []
+
+
+class PreviewOut(BaseModel):
+    ok: bool
+    content_hash: str
+    unchanged_since_last: bool
+    total_parsed: dict[str, int]  # {canais, filmes, series, episodios}
+    canais: PreviewCounts
+    filmes: PreviewCounts
+    series: PreviewCounts
+    warnings: list[str] = []
+    error: str | None = None
+
