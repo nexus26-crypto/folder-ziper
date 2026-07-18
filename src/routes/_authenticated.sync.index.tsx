@@ -91,7 +91,7 @@ function SyncPage() {
   const navigate = useNavigate();
   async function trigger(id: string) {
     try {
-      const job = await syncApi.trigger(id);
+      const job = await syncApi.trigger(id, true);
       toast.success("Sincronização enfileirada");
       await loadAll();
       navigate({ to: "/sync/jobs/$jobId", params: { jobId: job.id } });
