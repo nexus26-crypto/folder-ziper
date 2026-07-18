@@ -88,8 +88,14 @@ function SyncPage() {
     return () => { if (timer.current) clearInterval(timer.current); };
   }, [jobs, loadAll]);
 
+  const navigate = useNavigate();
   async function trigger(id: string) {
-    try { await syncApi.trigger(id); toast.success("Sincronização enfileirada"); await loadAll(); }
+    try {
+      const job = await syncApi.trigger(id);
+      toast.success("Sincronização enfileirada");
+      await loadAll();
+      navigate({ to: "/sync/jobs/$jobId", params: { jobId: job.id } });
+    }
     catch (e) { toast.error(e instanceof ApiError ? e.message : "Erro"); }
   }
   async function deleteSource(id: string) {
