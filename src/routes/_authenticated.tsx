@@ -4,6 +4,7 @@ import { useAuthStore } from "@/lib/auth-store";
 import { Button } from "@/components/ui/button";
 import { LayoutDashboard, Tv, RefreshCw, Users, Settings, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import logo from "@/assets/vodsystem-logo.png.asset.json";
 
 export const Route = createFileRoute("/_authenticated")({
   component: AuthenticatedLayout,
@@ -32,9 +33,9 @@ function AuthenticatedLayout() {
     <div className="min-h-screen bg-background text-foreground">
       <div className="flex">
         {/* Sidebar */}
-        <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col border-r border-border bg-card">
-          <div className="flex h-16 items-center px-6 border-b border-border">
-            <span className="font-semibold tracking-tight">VyntrixSync</span>
+        <aside className="hidden md:flex fixed inset-y-0 left-0 w-64 flex-col border-r border-sidebar-border bg-sidebar">
+          <div className="flex h-20 items-center px-5 border-b border-sidebar-border">
+            <img src={logo.url} alt="VODSystem" className="h-8 w-auto" />
           </div>
           <nav className="flex-1 space-y-1 p-3">
             {nav.map((item) => {

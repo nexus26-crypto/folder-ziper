@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
+import logo from "@/assets/vodsystem-logo.png.asset.json";
 
 const schema = z.object({
   email: z.string().email("Email inválido"),
@@ -25,8 +26,8 @@ type LoginResponse = {
 export const Route = createFileRoute("/login")({
   head: () => ({
     meta: [
-      { title: "Entrar — VyntrixSync" },
-      { name: "description", content: "Acesse seu painel VyntrixSync." },
+      { title: "Entrar — VODSystem" },
+      { name: "description", content: "Acesse seu painel VODSystem." },
     ],
   }),
   component: LoginPage,
@@ -59,11 +60,12 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-background p-4 gap-6">
+      <img src={logo.url} alt="VODSystem" className="h-14 w-auto" />
+      <Card className="w-full max-w-md border-border/60 shadow-[var(--shadow-brand)]">
         <CardHeader className="space-y-1">
           <CardTitle className="text-2xl">Entrar</CardTitle>
-          <CardDescription>Acesse sua conta VyntrixSync</CardDescription>
+          <CardDescription>Acesse sua conta VODSystem</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
