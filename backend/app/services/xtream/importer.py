@@ -83,6 +83,7 @@ def importar_canais(
     server_id: int = 0, criar_categorias: bool = True,
     mode: str = "insert_only", opts: dict | None = None,
     progress: ProgressCB | None = None,
+    log_item: LogItemCB | None = None,
 ) -> dict:
     opts = opts or {}
     inseridos = skipped = errors = atualizados = 0
@@ -94,16 +95,21 @@ def importar_canais(
         if mode == "delete_all":
             n = xui_db.delete_streams_of_type(cur, conn, 1)
             _tick(progress, 0, total, f"delete_all canais: -{n}")
+            _emit(log_item, f"[REMOVIDOS] canais existentes: {n}")
             mode = "insert_only"
 
         if opts.get("delete_dupes_before"):
             names = {c["nome"] for c in canais if c.get("nome")}
             n = xui_db.delete_duplicate_names(cur, conn, 1, names)
             _tick(progress, 0, total, f"dedup por nome: -{n}")
+            _emit(log_item, f"[DEDUP] canais removidos por nome duplicado: {n}")
 
         existing = xui_db.load_existing_streams(cur, 1)
 
         for i, c in enumerate(canais):
+            nome = c.get("nome") or "?"
+            categoria = c.get("categoria") or "-"
+            idx = i + 1
             try:
                 existing_id = _find_existing(existing, c, opts)
                 cat_id = mapping_categoria.get(c.get("categoria") or "")
@@ -111,13 +117,16 @@ def importar_canais(
                     cat_id = xui_db.ensure_category(cur, conn, c["categoria"], "live")
                     if cat_id: mapping_categoria[c["categoria"]] = cat_id
                 if not cat_id:
-                    skipped += 1; continue
+                    skipped += 1
+                    _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} — sem categoria mapeada")
+                    continue
 
                 if existing_id:
                     touched_ids.add(existing_id)
                     if mode == "insert_only" or mode == "mirror":
                         skipped += 1
                         ids_bouquet.append(existing_id)
+                        _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} ({existing_id}) — já existe")
                         continue
                     if mode == "insert_update":
                         try:
@@ -129,9 +138,12 @@ def importar_canais(
                             )
                             atualizados += 1
                             ids_bouquet.append(existing_id)
+                            _emit(log_item, f"[ATUALIZADO] {idx}/{total} {nome} ({existing_id}) [{categoria}]")
                             continue
                         except Exception as e:
-                            errors += 1; continue
+                            errors += 1
+                            _emit(log_item, f"[ERRO] {idx}/{total} {nome} — {e}")
+                            continue
 
                 cur.execute(
                     """INSERT INTO streams
@@ -149,16 +161,20 @@ def importar_canais(
                 inseridos += 1
                 nn = xui_db._norm_name(c["nome"])
                 if nn: existing["by_name"][nn] = sid
+                _emit(log_item, f"[INSERIDO] {idx}/{total} {nome} ({sid}) [{categoria}]")
                 if inseridos % BATCH == 0:
                     conn.commit()
                     _tick(progress, i + 1, total, f"canais: +{inseridos} ~{atualizados}")
             except Exception as e:
                 errors += 1
+                _emit(log_item, f"[ERRO] {idx}/{total} {nome} — {e}")
         conn.commit()
 
         orphans_removed = 0
         if mode == "mirror" or opts.get("remove_orphans"):
             orphans_removed = xui_db.delete_orphan_streams(cur, conn, 1, touched_ids)
+            if orphans_removed:
+                _emit(log_item, f"[ÓRFÃOS] canais removidos: {orphans_removed}")
 
         bq_added = xui_db.append_bouquets(cur, conn, bouquet_ids or [], ids_bouquet)
 
