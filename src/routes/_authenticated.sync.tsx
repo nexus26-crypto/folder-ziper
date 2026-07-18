@@ -611,7 +611,7 @@ function Step3Mapping({ mapping, setMapping, meta, loading }: {
       </SectionCard>
 
       <SectionCard title="Duplicatas e órfãos (avançado)">
-        <ToggleRow label="Criar categorias automaticamente" desc="Se a categoria não existir no XUI, é criada com o mesmo nome."
+        <ToggleRow label="Criar categorias automaticamente" desc="Se a categoria não existir no painel, é criada com o mesmo nome."
           checked={mapping.criar_categorias} onChange={v => update("criar_categorias", v)} />
         <ToggleRow label="Dedup por URL da fonte (ignora título)"
           desc="Útil se o mesmo filme aparece com nomes diferentes mas mesma URL."
