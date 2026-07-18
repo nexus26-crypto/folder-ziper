@@ -24,16 +24,31 @@ def _sync_engine():
     return _engine
 
 
+MAX_LOG_LINES = 2000  # cap log_tail para não estourar TEXT do postgres
+
+
 def _job_update(schema: str, job_id: str, **fields):
-    """UPDATE incremental em sync_jobs. Concatena log_tail se vier."""
+    """UPDATE incremental em sync_jobs. Concatena log_tail se vier (string ou lista)."""
     log_line = fields.pop("log_line", None)
     sets, params = [], {"id": job_id}
     for k, v in fields.items():
         sets.append(f"{k} = :{k}")
         params[k] = v
-    if log_line:
-        sets.append("log_tail = COALESCE(log_tail,'') || :log_line")
-        params["log_line"] = f"[{datetime.now().strftime('%H:%M:%S')}] {log_line}\n"
+    if log_line is not None:
+        if isinstance(log_line, (list, tuple)):
+            lines = list(log_line)
+        else:
+            lines = [log_line]
+        ts = datetime.now().strftime('%H:%M:%S')
+        chunk = "".join(f"[{ts}] {ln}\n" for ln in lines if ln)
+        if chunk:
+            # append + trim ao final para manter só as últimas MAX_LOG_LINES linhas
+            sets.append(
+                "log_tail = array_to_string("
+                "(string_to_array(COALESCE(log_tail,'') || :log_chunk, E'\\n'))"
+                f"[GREATEST(1, array_length(string_to_array(COALESCE(log_tail,'') || :log_chunk, E'\\n'), 1) - {MAX_LOG_LINES}):], E'\\n')"
+            )
+            params["log_chunk"] = chunk
     if not sets:
         return
     q = f'UPDATE "{schema}".sync_jobs SET {", ".join(sets)} WHERE id = :id'
@@ -166,37 +181,87 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
         }
 
         totals = {"inseridos": 0, "atualizados": 0, "skipped": 0, "errors": 0, "orphans_removed": 0}
+        cat_totals = {
+            "canais": len(parsed["canais"]),
+            "filmes": len(parsed["filmes"]),
+            "series": len(parsed["series"]),
+        }
         breakdown = {
-            "canais": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
-            "filmes": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
-            "series": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0},
+            "canais": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0, "processed": 0, "total": cat_totals["canais"]},
+            "filmes": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0, "processed": 0, "total": cat_totals["filmes"]},
+            "series": {"inserted": 0, "updated": 0, "skipped": 0, "deleted": 0, "errors": 0, "processed": 0, "total": cat_totals["series"]},
         }
         category_offsets = {
             "canais": 0,
-            "filmes": len(parsed["canais"]),
-            "series": len(parsed["canais"]) + len(parsed["filmes"]),
+            "filmes": cat_totals["canais"],
+            "series": cat_totals["canais"] + cat_totals["filmes"],
         }
 
+        # Persist breakdown inicial pra UI mostrar os totais logo
+        _job_update(tenant_schema, job_id, result=json.dumps(breakdown))
+
+        # -------- buffered per-item logger --------
+        LOG_BUFFER_SIZE = 25
+        LOG_FLUSH_INTERVAL = 1.0
+        buf_state = {"lines": [], "last_flush": time.time(), "current": "canais"}
+
+        def _flush_logs(force: bool = False):
+            now = time.time()
+            if not buf_state["lines"]:
+                return
+            if not force and len(buf_state["lines"]) < LOG_BUFFER_SIZE and (now - buf_state["last_flush"]) < LOG_FLUSH_INTERVAL:
+                return
+            lines = buf_state["lines"]
+            buf_state["lines"] = []
+            buf_state["last_flush"] = now
+            try:
+                _job_update(tenant_schema, job_id, log_line=lines)
+            except Exception:
+                log.exception("flush logs failed")
+
+        def log_item_for(category: str):
+            def _log(line: str):
+                buf_state["lines"].append(f"{category}: {line}")
+                # counters por status para o breakdown ao vivo
+                if line.startswith("[INSERIDO]"):
+                    breakdown[category]["inserted"] += 1
+                    breakdown[category]["processed"] += 1
+                elif line.startswith("[ATUALIZADO]"):
+                    breakdown[category]["updated"] += 1
+                    breakdown[category]["processed"] += 1
+                elif line.startswith("[IGNORADO]"):
+                    breakdown[category]["skipped"] += 1
+                    breakdown[category]["processed"] += 1
+                elif line.startswith("[ERRO]"):
+                    breakdown[category]["errors"] += 1
+                    breakdown[category]["processed"] += 1
+                _flush_logs()
+            return _log
+
         def progress_for(category: str):
-            last_reported = {"value": -1}
+            last_reported = {"value": -1, "flushed_at": 0.0}
 
             def _progress(done, _category_total, msg):
                 overall_done = min(total, category_offsets[category] + max(0, int(done)))
                 pct = min(99, int((overall_done / max(total, 1)) * 100))
-                if pct >= last_reported["value"] + 1:
+                now = time.time()
+                # atualiza progresso e breakdown ao vivo a cada 1% ou 2s
+                if pct >= last_reported["value"] + 1 or (now - last_reported["flushed_at"]) > 2.0:
                     last_reported["value"] = pct
-                    _job_update(tenant_schema, job_id, progress=pct, log_line=msg)
+                    last_reported["flushed_at"] = now
+                    _flush_logs(force=True)
+                    _job_update(tenant_schema, job_id, progress=pct, result=json.dumps(breakdown))
 
             return _progress
 
         def save_category(category: str, result: dict):
-            breakdown[category] = {
-                "inserted": result.get("inseridos", 0),
-                "updated": result.get("atualizados", 0),
-                "skipped": result.get("skipped", 0),
-                "deleted": result.get("orphans_removed", 0),
-                "errors": result.get("errors", 0),
-            }
+            breakdown[category]["inserted"] = result.get("inseridos", 0)
+            breakdown[category]["updated"] = result.get("atualizados", 0)
+            breakdown[category]["skipped"] = result.get("skipped", 0)
+            breakdown[category]["deleted"] = result.get("orphans_removed", 0)
+            breakdown[category]["errors"] = result.get("errors", 0)
+            breakdown[category]["processed"] = breakdown[category]["total"]
+            _flush_logs(force=True)
             _job_update(
                 tenant_schema, job_id,
                 inserted=totals["inseridos"], skipped=totals["skipped"], errors=totals["errors"],
@@ -208,7 +273,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             r = importer.importar_canais(
                 xui_conf, parsed["canais"], map_live,
                 bouquet_ids=bq_canais, server_id=server_id,
-                criar_categorias=criar_cats, mode=mode_canais, opts=opts, progress=progress_for("canais"),
+                criar_categorias=criar_cats, mode=mode_canais, opts=opts,
+                progress=progress_for("canais"), log_item=log_item_for("canais"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
@@ -225,7 +291,8 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
             r = importer.importar_filmes(
                 xui_conf, parsed["filmes"], map_movie,
                 bouquet_ids=bq_filmes, server_id=server_id,
-                criar_categorias=criar_cats, mode=mode_filmes, opts=opts, progress=progress_for("filmes"),
+                criar_categorias=criar_cats, mode=mode_filmes, opts=opts,
+                progress=progress_for("filmes"), log_item=log_item_for("filmes"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
@@ -240,13 +307,15 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
                 bouquet_ids=bq_series, server_id=server_id,
                 criar_categorias=criar_cats, mode=mode_series, opts=opts,
                 usar_tmdb=usar_tmdb, tmdb_api_key=tmdb_key, tmdb_language=tmdb_lang,
-                progress=progress_for("series"),
+                progress=progress_for("series"), log_item=log_item_for("series"),
             )
             for k in totals:
                 if k in r: totals[k] += r[k]
             save_category("series", r)
             _job_update(tenant_schema, job_id,
                         log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+
+        _flush_logs(force=True)
 
 
 

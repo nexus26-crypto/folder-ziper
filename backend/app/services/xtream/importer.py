@@ -23,11 +23,18 @@ from app.services.xtream.m3u_parser import extrair_nome_arquivo, extrair_extensa
 
 BATCH = 100
 ProgressCB = Callable[[int, int, str], None]
+LogItemCB = Callable[[str], None]
 
 
 def _tick(cb: ProgressCB | None, done: int, total: int, msg: str = ""):
     if cb:
         try: cb(done, total, msg)
+        except Exception: pass
+
+
+def _emit(cb: LogItemCB | None, line: str):
+    if cb:
+        try: cb(line)
         except Exception: pass
 
 
@@ -76,6 +83,7 @@ def importar_canais(
     server_id: int = 0, criar_categorias: bool = True,
     mode: str = "insert_only", opts: dict | None = None,
     progress: ProgressCB | None = None,
+    log_item: LogItemCB | None = None,
 ) -> dict:
     opts = opts or {}
     inseridos = skipped = errors = atualizados = 0
@@ -87,16 +95,21 @@ def importar_canais(
         if mode == "delete_all":
             n = xui_db.delete_streams_of_type(cur, conn, 1)
             _tick(progress, 0, total, f"delete_all canais: -{n}")
+            _emit(log_item, f"[REMOVIDOS] canais existentes: {n}")
             mode = "insert_only"
 
         if opts.get("delete_dupes_before"):
             names = {c["nome"] for c in canais if c.get("nome")}
             n = xui_db.delete_duplicate_names(cur, conn, 1, names)
             _tick(progress, 0, total, f"dedup por nome: -{n}")
+            _emit(log_item, f"[DEDUP] canais removidos por nome duplicado: {n}")
 
         existing = xui_db.load_existing_streams(cur, 1)
 
         for i, c in enumerate(canais):
+            nome = c.get("nome") or "?"
+            categoria = c.get("categoria") or "-"
+            idx = i + 1
             try:
                 existing_id = _find_existing(existing, c, opts)
                 cat_id = mapping_categoria.get(c.get("categoria") or "")
@@ -104,13 +117,16 @@ def importar_canais(
                     cat_id = xui_db.ensure_category(cur, conn, c["categoria"], "live")
                     if cat_id: mapping_categoria[c["categoria"]] = cat_id
                 if not cat_id:
-                    skipped += 1; continue
+                    skipped += 1
+                    _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} — sem categoria mapeada")
+                    continue
 
                 if existing_id:
                     touched_ids.add(existing_id)
                     if mode == "insert_only" or mode == "mirror":
                         skipped += 1
                         ids_bouquet.append(existing_id)
+                        _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} ({existing_id}) — já existe")
                         continue
                     if mode == "insert_update":
                         try:
@@ -122,9 +138,12 @@ def importar_canais(
                             )
                             atualizados += 1
                             ids_bouquet.append(existing_id)
+                            _emit(log_item, f"[ATUALIZADO] {idx}/{total} {nome} ({existing_id}) [{categoria}]")
                             continue
                         except Exception as e:
-                            errors += 1; continue
+                            errors += 1
+                            _emit(log_item, f"[ERRO] {idx}/{total} {nome} — {e}")
+                            continue
 
                 cur.execute(
                     """INSERT INTO streams
@@ -142,16 +161,20 @@ def importar_canais(
                 inseridos += 1
                 nn = xui_db._norm_name(c["nome"])
                 if nn: existing["by_name"][nn] = sid
+                _emit(log_item, f"[INSERIDO] {idx}/{total} {nome} ({sid}) [{categoria}]")
                 if inseridos % BATCH == 0:
                     conn.commit()
                     _tick(progress, i + 1, total, f"canais: +{inseridos} ~{atualizados}")
             except Exception as e:
                 errors += 1
+                _emit(log_item, f"[ERRO] {idx}/{total} {nome} — {e}")
         conn.commit()
 
         orphans_removed = 0
         if mode == "mirror" or opts.get("remove_orphans"):
             orphans_removed = xui_db.delete_orphan_streams(cur, conn, 1, touched_ids)
+            if orphans_removed:
+                _emit(log_item, f"[ÓRFÃOS] canais removidos: {orphans_removed}")
 
         bq_added = xui_db.append_bouquets(cur, conn, bouquet_ids or [], ids_bouquet)
 
@@ -167,6 +190,7 @@ def importar_filmes(
     server_id: int = 0, criar_categorias: bool = True,
     mode: str = "insert_only", opts: dict | None = None,
     progress: ProgressCB | None = None,
+    log_item: LogItemCB | None = None,
 ) -> dict:
     opts = opts or {}
     inseridos = skipped = errors = atualizados = 0
@@ -178,15 +202,20 @@ def importar_filmes(
         if mode == "delete_all":
             n = xui_db.delete_streams_of_type(cur, conn, 2)
             _tick(progress, 0, total, f"delete_all filmes: -{n}")
+            _emit(log_item, f"[REMOVIDOS] filmes existentes: {n}")
             mode = "insert_only"
         if opts.get("delete_dupes_before"):
             names = {f["nome"] for f in filmes if f.get("nome")}
             n = xui_db.delete_duplicate_names(cur, conn, 2, names)
             _tick(progress, 0, total, f"dedup por nome: -{n}")
+            _emit(log_item, f"[DEDUP] filmes removidos por nome duplicado: {n}")
 
         existing = xui_db.load_existing_streams(cur, 2)
 
         for i, f in enumerate(filmes):
+            nome = f.get("nome") or "?"
+            categoria = f.get("categoria") or "-"
+            idx = i + 1
             try:
                 tm = (f.get("_tmdb") or {}) if isinstance(f.get("_tmdb"), dict) else {}
                 tmdb_id = str(tm.get("tmdb_id") or "").strip()
@@ -194,6 +223,7 @@ def importar_filmes(
                 if opts.get("skip_tmdb_existing") and tmdb_id and tmdb_id in existing.get("by_tmdb", {}):
                     skipped += 1
                     touched_ids.add(existing["by_tmdb"][tmdb_id])
+                    _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} — TMDB {tmdb_id} já existe")
                     continue
 
                 existing_id = None
@@ -207,7 +237,9 @@ def importar_filmes(
                     cat_id = xui_db.ensure_category(cur, conn, f["categoria"], "movie")
                     if cat_id: mapping_categoria[f["categoria"]] = cat_id
                 if not cat_id:
-                    skipped += 1; continue
+                    skipped += 1
+                    _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} — sem categoria mapeada")
+                    continue
 
                 cover = tm.get("poster_url") or f.get("logo") or ""
                 backdrop = tm.get("backdrop_url") or f.get("logo") or ""
@@ -218,12 +250,14 @@ def importar_filmes(
                     if mode == "insert_only" or mode == "mirror":
                         skipped += 1
                         ids_bouquet.append(existing_id)
+                        _emit(log_item, f"[IGNORADO] {idx}/{total} {nome} ({existing_id}) — título já existe")
                         continue
                     if mode == "insert_update":
                         xui_db.update_stream_movie(cur, conn, existing_id, cat_id,
                                                     f["nome"], f["url"], cover, movie_props)
                         atualizados += 1
                         ids_bouquet.append(existing_id)
+                        _emit(log_item, f"[ATUALIZADO] {idx}/{total} {nome} ({existing_id}) [{categoria}]")
                         continue
 
                 cur.execute(
@@ -244,16 +278,20 @@ def importar_filmes(
                 nn = xui_db._norm_name(f["nome"])
                 if nn: existing["by_name"][nn] = sid
                 if tmdb_id: existing["by_tmdb"][tmdb_id] = sid
+                _emit(log_item, f"[INSERIDO] {idx}/{total} {nome} ({sid}) [{categoria}]" + (f" TMDB:{tmdb_id}" if tmdb_id else ""))
                 if inseridos % BATCH == 0:
                     conn.commit()
                     _tick(progress, i + 1, total, f"filmes: +{inseridos} ~{atualizados}")
             except Exception as e:
                 errors += 1
+                _emit(log_item, f"[ERRO] {idx}/{total} {nome} — {e}")
         conn.commit()
 
         orphans_removed = 0
         if mode == "mirror" or opts.get("remove_orphans"):
             orphans_removed = xui_db.delete_orphan_streams(cur, conn, 2, touched_ids)
+            if orphans_removed:
+                _emit(log_item, f"[ÓRFÃOS] filmes removidos: {orphans_removed}")
 
         bq_added = xui_db.append_bouquets(cur, conn, bouquet_ids or [], ids_bouquet)
 
@@ -285,6 +323,7 @@ def importar_series(
     usar_tmdb: bool = False, tmdb_api_key: str | None = None,
     tmdb_language: str = "pt-BR",
     progress: ProgressCB | None = None,
+    log_item: LogItemCB | None = None,
 ) -> dict:
     from collections import defaultdict
     from app.services.xtream import tmdb as tmdb_mod
@@ -311,6 +350,7 @@ def importar_series(
         if mode == "delete_all":
             n = xui_db.delete_all_series(cur, conn)
             _tick(progress, 0, total, f"delete_all séries: -{n}")
+            _emit(log_item, f"[REMOVIDOS] séries existentes: {n}")
             mode = "insert_only"
 
         cache = xui_db.load_series_cache(cur)
@@ -322,7 +362,9 @@ def importar_series(
                     cat_id = xui_db.ensure_category(cur, conn, categoria, "series")
                     if cat_id: mapping_categoria[categoria] = cat_id
                 if not cat_id:
-                    skipped += len(eps); done_eps += len(eps); continue
+                    skipped += len(eps); done_eps += len(eps)
+                    _emit(log_item, f"[IGNORADO] série {serie_nome} — sem categoria mapeada ({len(eps)} eps)")
+                    continue
 
                 info = tmdb_map.get(serie_nome, {}) if usar_tmdb else {}
                 tmdb_id = info.get("tmdb_id") or ""
@@ -343,6 +385,7 @@ def importar_series(
                     serie_id = cur.lastrowid
                     series_criadas += 1
                     xui_db.remember_series(cache, serie_nome, tmdb_id, serie_id)
+                    _emit(log_item, f"[SÉRIE NOVA] {serie_nome} ({serie_id}) [{categoria}]" + (f" TMDB:{tmdb_id}" if tmdb_id else ""))
 
                 touched_series.add(serie_id)
                 if serie_id not in series_ids_bouquet:
@@ -352,8 +395,11 @@ def importar_series(
                 for ep in eps:
                     done_eps += 1
                     temp = int(ep.get("temp") or 1); num = int(ep.get("ep") or 1)
+                    ep_label = f"{serie_nome} S{temp:02d}E{num:02d}"
                     if (serie_id, temp, num) in cache["episodes"]:
-                        skipped += 1; continue
+                        skipped += 1
+                        _emit(log_item, f"[IGNORADO] {done_eps}/{total} {ep_label} — já existe")
+                        continue
                     props = json.dumps({
                         "release_date": "", "plot": info.get("plot", ""),
                         "duration_secs": 0, "duration": "00:00:00",
@@ -369,7 +415,7 @@ def importar_series(
                             (stream_display_name, stream_source, stream_icon, type,
                              movie_propeties, direct_source, target_container, added)
                         VALUES (%s,%s,%s,5,%s,1,%s,%s)
-                    """, (ep.get("nome") or f"{serie_nome} S{temp:02d}E{num:02d}",
+                    """, (ep.get("nome") or ep_label,
                           json.dumps([ep["url"]]),
                           ep.get("logo") or "", props,
                           extrair_extensao(ep["url"]),
@@ -381,16 +427,20 @@ def importar_series(
                         xui_db.insert_stream_server(cur, stream_id, server_id)
                     cache["episodes"].add((serie_id, temp, num))
                     inseridos += 1
+                    _emit(log_item, f"[INSERIDO] {done_eps}/{total} {ep_label} ({stream_id})")
                     if inseridos % BATCH == 0:
                         conn.commit()
                         _tick(progress, done_eps, total, f"séries: +{inseridos} eps")
             except Exception as e:
                 errors += 1
+                _emit(log_item, f"[ERRO] série {serie_nome} — {e}")
         conn.commit()
 
         orphans_removed = 0
         if mode == "mirror" or opts.get("remove_orphans"):
             orphans_removed = xui_db.delete_orphan_series(cur, conn, touched_series)
+            if orphans_removed:
+                _emit(log_item, f"[ÓRFÃOS] séries removidas: {orphans_removed}")
 
         bq_added = xui_db.append_series_bouquets(cur, conn, bouquet_ids or [], series_ids_bouquet)
 
