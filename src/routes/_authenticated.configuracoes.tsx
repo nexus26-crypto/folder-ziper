@@ -2,7 +2,9 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { settingsApi, type Workspace } from "@/lib/api/settings";
-import { xuiApi, type XuiConnection } from "@/lib/api/xui";
+import { xuiApi, type XuiConnection, type PanelType, PANEL_TYPE_LABELS } from "@/lib/api/xui";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+
 import { ApiError } from "@/lib/api";
 import { useAuthStore } from "@/lib/auth-store";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
