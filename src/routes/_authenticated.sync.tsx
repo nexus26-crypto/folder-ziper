@@ -734,12 +734,16 @@ function MultiBouquet({ label, items, selected, onToggle }: {
   );
 }
 
-// ---------- Step 4: revisão ----------
-function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAutoSync, cron, setCron }: {
+// ---------- Step 4: revisão + preview ----------
+function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAutoSync, cron, setCron,
+  preview, previewing, onPreview, force, setForce,
+}: {
   name: string; method: MethodChoice; m3uUrl: string; host: string;
   xui: XuiConnection | null; mapping: Mapping;
   autoSync: boolean; setAutoSync: (v: boolean) => void;
   cron: string; setCron: (v: string) => void;
+  preview: SyncPreview | null; previewing: boolean; onPreview: () => void;
+  force: boolean; setForce: (v: boolean) => void;
 }) {
   const bqCount = mapping.bouquets_canais.length + mapping.bouquets_filmes.length + mapping.bouquets_series.length;
   return (
@@ -751,7 +755,7 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
         <Row k="Método">{method}</Row>
         {method === "m3u_url" && <Row k="URL M3U" mono>{m3uUrl}</Row>}
         {method === "xtream_api" && <Row k="Host" mono>{host}</Row>}
-        <Row k="XUI de destino">{xui ? `${xui.name} — ${xui.host}:${xui.port}` : "—"}</Row>
+        <Row k="Painel destino">{xui ? `${xui.name} — ${xui.host}:${xui.port}` : "—"}</Row>
         <Row k="DB / usuário">{xui ? `${xui.db_name} / ${xui.db_user}` : "—"}</Row>
         <Row k="Server ID">{mapping.server_id}</Row>
         <Row k="Modos">canais: <b>{mapping.mode_canais}</b> · filmes: <b>{mapping.mode_filmes}</b> · séries: <b>{mapping.mode_series}</b></Row>
@@ -759,10 +763,45 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
         <Row k="TMDB">{mapping.usar_tmdb ? `sim (${mapping.tmdb_language})` : "não"}</Row>
       </div>
 
+      {/* Preview (dry-run) */}
+      <div className="rounded-lg border p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="font-medium text-sm">Preview (dry-run)</p>
+            <p className="text-xs text-muted-foreground">Simula a sync no painel de destino. Nada é gravado.</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={onPreview} disabled={previewing}>
+            {previewing ? "Analisando…" : preview ? "Recalcular" : "Ver preview"}
+          </Button>
+        </div>
+        {preview && (
+          <>
+            {preview.unchanged_since_last && (
+              <div className="rounded border border-blue-500/40 bg-blue-500/5 p-2 text-xs">
+                ⚡ Conteúdo <b>idêntico</b> à última sincronia (hash <code>{preview.content_hash.slice(0, 8)}</code>).
+                Sync será pulada automaticamente — ative "forçar mesmo assim" abaixo pra rodar de qualquer forma.
+              </div>
+            )}
+            {preview.error && <p className="text-xs text-destructive">{preview.error}</p>}
+            {preview.warnings.map((w, i) => <p key={i} className="text-xs text-yellow-600">⚠ {w}</p>)}
+            <div className="grid gap-2 sm:grid-cols-3">
+              <PreviewCard title="Canais" icon="📺" data={preview.canais} />
+              <PreviewCard title="Filmes" icon="🎬" data={preview.filmes} />
+              <PreviewCard title="Séries" icon="📼" data={preview.series} />
+            </div>
+          </>
+        )}
+        {preview?.unchanged_since_last && (
+          <ToggleRow label="Forçar sync mesmo com conteúdo idêntico"
+            desc="Ignora o hash e roda a sincronização de qualquer maneira."
+            checked={force} onChange={setForce} />
+        )}
+      </div>
+
       <div className="rounded-lg border border-yellow-500/40 bg-yellow-500/5 p-3 text-sm">
         <strong>⚠️ Faça backup do banco de dados AGORA antes de começar.</strong>
         <p className="text-xs text-muted-foreground mt-1">
-          Apesar do sistema estar testado, alterações em massa podem afetar dados existentes. Caso perca dados sem backup, não é possível recuperar.
+          Apesar do sistema estar testado, alterações em massa podem afetar dados existentes.
         </p>
       </div>
 
@@ -780,6 +819,40 @@ function Step4Review({ name, method, m3uUrl, host, xui, mapping, autoSync, setAu
     </div>
   );
 }
+
+function PreviewCard({ title, icon, data }: { title: string; icon: string; data: PreviewCounts }) {
+  if (!data || !data.total) {
+    return (
+      <div className="rounded-md border p-3 text-xs">
+        <p className="font-medium mb-1">{icon} {title}</p>
+        <p className="text-muted-foreground">— nenhum item na fonte —</p>
+      </div>
+    );
+  }
+  return (
+    <div className="rounded-md border p-3 text-xs space-y-1">
+      <p className="font-medium">{icon} {title} <span className="text-muted-foreground">({data.total})</span></p>
+      <div className="flex flex-wrap gap-1.5">
+        <Badge variant="default" className="bg-green-600 hover:bg-green-600">+{data.to_insert} novo</Badge>
+        {data.to_update > 0 && <Badge variant="secondary">~{data.to_update} atual.</Badge>}
+        {data.to_delete > 0 && <Badge variant="destructive">-{data.to_delete} deletar</Badge>}
+      </div>
+      {data.samples_insert.length > 0 && (
+        <details className="text-[11px] text-muted-foreground">
+          <summary className="cursor-pointer">Exemplos de inserção</summary>
+          <ul className="list-disc pl-4 mt-1">{data.samples_insert.map(s => <li key={s} className="truncate">{s}</li>)}</ul>
+        </details>
+      )}
+      {data.samples_delete.length > 0 && (
+        <details className="text-[11px] text-destructive">
+          <summary className="cursor-pointer">Exemplos que seriam DELETADOS</summary>
+          <ul className="list-disc pl-4 mt-1">{data.samples_delete.map(s => <li key={s} className="truncate">{s}</li>)}</ul>
+        </details>
+      )}
+    </div>
+  );
+}
+
 
 function Row({ k, children, mono }: { k: string; children: React.ReactNode; mono?: boolean }) {
   return (
