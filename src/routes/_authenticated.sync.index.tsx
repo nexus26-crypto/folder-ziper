@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState, useCallback } from "react";
 import { toast } from "sonner";
 import { syncApi, type XtreamSource, type SyncJob, type SourceType, type CreateSourceBody, type SyncPreview, type PreviewCounts } from "@/lib/api/sync";
