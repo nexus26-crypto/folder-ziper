@@ -186,7 +186,9 @@ def importar_canais(
 
     _tick(progress, total, total, f"canais concluído: +{inseridos} ~{atualizados}")
     return {"inseridos": inseridos, "atualizados": atualizados, "skipped": skipped,
-            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed}
+            "errors": errors, "bouquet_added": bq_added, "orphans_removed": orphans_removed,
+            "deleted_pre": removed_pre}
+
 
 
 def importar_filmes(
