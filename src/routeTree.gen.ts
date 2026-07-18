@@ -19,6 +19,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedConfiguracoesRouteImport } from './routes/_authenticated.configuracoes'
 import { Route as AuthenticatedCanaisRouteImport } from './routes/_authenticated.canais'
 import { Route as AuthenticatedBannersRouteImport } from './routes/_authenticated.banners'
+import { Route as AuthenticatedSyncJobsJobIdRouteImport } from './routes/_authenticated.sync.jobs.$jobId'
 
 const SignupRoute = SignupRouteImport.update({
   id: '/signup',
@@ -70,6 +71,12 @@ const AuthenticatedBannersRoute = AuthenticatedBannersRouteImport.update({
   path: '/banners',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedSyncJobsJobIdRoute =
+  AuthenticatedSyncJobsJobIdRouteImport.update({
+    id: '/jobs/$jobId',
+    path: '/jobs/$jobId',
+    getParentRoute: () => AuthenticatedSyncRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -79,8 +86,9 @@ export interface FileRoutesByFullPath {
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/sync': typeof AuthenticatedSyncRoute
+  '/sync': typeof AuthenticatedSyncRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -90,8 +98,9 @@ export interface FileRoutesByTo {
   '/canais': typeof AuthenticatedCanaisRoute
   '/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
-  '/sync': typeof AuthenticatedSyncRoute
+  '/sync': typeof AuthenticatedSyncRouteWithChildren
   '/usuarios': typeof AuthenticatedUsuariosRoute
+  '/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -103,8 +112,9 @@ export interface FileRoutesById {
   '/_authenticated/canais': typeof AuthenticatedCanaisRoute
   '/_authenticated/configuracoes': typeof AuthenticatedConfiguracoesRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
-  '/_authenticated/sync': typeof AuthenticatedSyncRoute
+  '/_authenticated/sync': typeof AuthenticatedSyncRouteWithChildren
   '/_authenticated/usuarios': typeof AuthenticatedUsuariosRoute
+  '/_authenticated/sync/jobs/$jobId': typeof AuthenticatedSyncJobsJobIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -118,6 +128,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/sync'
     | '/usuarios'
+    | '/sync/jobs/$jobId'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -129,6 +140,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/sync'
     | '/usuarios'
+    | '/sync/jobs/$jobId'
   id:
     | '__root__'
     | '/'
@@ -141,6 +153,7 @@ export interface FileRouteTypes {
     | '/_authenticated/dashboard'
     | '/_authenticated/sync'
     | '/_authenticated/usuarios'
+    | '/_authenticated/sync/jobs/$jobId'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -222,15 +235,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedBannersRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/sync/jobs/$jobId': {
+      id: '/_authenticated/sync/jobs/$jobId'
+      path: '/jobs/$jobId'
+      fullPath: '/sync/jobs/$jobId'
+      preLoaderRoute: typeof AuthenticatedSyncJobsJobIdRouteImport
+      parentRoute: typeof AuthenticatedSyncRoute
+    }
   }
 }
+
+interface AuthenticatedSyncRouteChildren {
+  AuthenticatedSyncJobsJobIdRoute: typeof AuthenticatedSyncJobsJobIdRoute
+}
+
+const AuthenticatedSyncRouteChildren: AuthenticatedSyncRouteChildren = {
+  AuthenticatedSyncJobsJobIdRoute: AuthenticatedSyncJobsJobIdRoute,
+}
+
+const AuthenticatedSyncRouteWithChildren =
+  AuthenticatedSyncRoute._addFileChildren(AuthenticatedSyncRouteChildren)
 
 interface AuthenticatedRouteChildren {
   AuthenticatedBannersRoute: typeof AuthenticatedBannersRoute
   AuthenticatedCanaisRoute: typeof AuthenticatedCanaisRoute
   AuthenticatedConfiguracoesRoute: typeof AuthenticatedConfiguracoesRoute
   AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedSyncRoute: typeof AuthenticatedSyncRoute
+  AuthenticatedSyncRoute: typeof AuthenticatedSyncRouteWithChildren
   AuthenticatedUsuariosRoute: typeof AuthenticatedUsuariosRoute
 }
 
@@ -239,7 +270,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedCanaisRoute: AuthenticatedCanaisRoute,
   AuthenticatedConfiguracoesRoute: AuthenticatedConfiguracoesRoute,
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
-  AuthenticatedSyncRoute: AuthenticatedSyncRoute,
+  AuthenticatedSyncRoute: AuthenticatedSyncRouteWithChildren,
   AuthenticatedUsuariosRoute: AuthenticatedUsuariosRoute,
 }
 

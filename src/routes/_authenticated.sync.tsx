@@ -192,7 +192,7 @@ function SyncPage() {
                   <TableCell className="text-muted-foreground">{j.skipped}</TableCell>
                   <TableCell className={j.errors ? "text-destructive" : "text-muted-foreground"}>{j.errors}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">{new Date(j.created_at).toLocaleString("pt-BR")}</TableCell>
-                  <TableCell><Button size="sm" variant="ghost" onClick={() => setLogSheet(j)}><FileText className="h-4 w-4" /></Button></TableCell>
+                  <TableCell><Button asChild size="sm" variant="ghost"><Link to="/sync/jobs/$jobId" params={{ jobId: j.id }}><FileText className="h-4 w-4" /></Link></Button></TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -882,7 +882,12 @@ function Step5Done({ sourceId, jobId, onClose }: { sourceId: string; jobId: stri
           </button>
         </div>
       )}
-      <div className="pt-2"><Button onClick={onClose}>Fechar</Button></div>
+      <div className="pt-2 flex gap-2 justify-center">
+        {jobId && (
+          <Button asChild><Link to="/sync/jobs/$jobId" params={{ jobId }} onClick={onClose}>Acompanhar sync</Link></Button>
+        )}
+        <Button variant="outline" onClick={onClose}>Fechar</Button>
+      </div>
       <p className="text-xs text-muted-foreground pt-2">ID da fonte: <code className="font-mono">{sourceId}</code></p>
     </div>
   );
