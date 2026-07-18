@@ -497,7 +497,7 @@ function Step2Source(props: {
           <Input value={name} onChange={e => setName(e.target.value)} placeholder="Ex.: Painel Principal" />
         </div>
         <div className="space-y-1">
-          <Label>Destino XUI *</Label>
+          <Label>Painel de destino *</Label>
           <Select value={xuiId} onValueChange={setXuiId}>
             <SelectTrigger><SelectValue placeholder="Selecione…" /></SelectTrigger>
             <SelectContent>
