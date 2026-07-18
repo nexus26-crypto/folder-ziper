@@ -201,9 +201,11 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str, force
         _job_update(tenant_schema, job_id, result=json.dumps(breakdown))
 
         # -------- buffered per-item logger --------
-        LOG_BUFFER_SIZE = 25
-        LOG_FLUSH_INTERVAL = 1.0
+        # buffer pequeno + flush rápido = cada título aparece quase em tempo real na UI
+        LOG_BUFFER_SIZE = 5
+        LOG_FLUSH_INTERVAL = 0.3
         buf_state = {"lines": [], "last_flush": time.time(), "current": "canais"}
+
 
         def _flush_logs(force: bool = False):
             now = time.time()
