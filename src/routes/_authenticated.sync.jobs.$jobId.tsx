@@ -112,7 +112,7 @@ function JobDetailPage() {
           <div className="flex items-center justify-between">
             <CardTitle className="text-base">Progresso</CardTitle>
             <div className="text-sm text-muted-foreground">
-               {job?.progress ?? 0}% · {(job?.inserted ?? 0) + (job?.skipped ?? 0) + (job?.errors ?? 0)}/{job?.total_items ?? 0} itens
+               {job?.progress ?? 0}% · {Math.round(((job?.progress ?? 0) / 100) * (job?.total_items ?? 0))}/{job?.total_items ?? 0} itens
             </div>
           </div>
         </CardHeader>
