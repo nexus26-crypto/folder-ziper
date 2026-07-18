@@ -28,7 +28,8 @@ case "$CMD" in
     exec celery -A app.workers.celery_app worker \
       -Q scraping \
       --loglevel=info \
-      --concurrency=2
+      --concurrency=1
+
     ;;
   beat)
     echo "==> Iniciando Celery beat scheduler"
