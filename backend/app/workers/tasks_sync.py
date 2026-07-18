@@ -118,18 +118,34 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
         _job_update(tenant_schema, job_id, total_items=total,
                     log_line=f"parse: {len(parsed['canais'])} canais, {len(parsed['filmes'])} filmes, {len(parsed['series'])} series")
 
+        def _as_list(v):
+            if v is None or v == "": return []
+            if isinstance(v, list): return [int(x) for x in v if x]
+            return [int(v)]
+
         map_live = {k: int(v) for k, v in (mapping.get("live") or {}).items()}
         map_movie = {k: int(v) for k, v in (mapping.get("movie") or {}).items()}
         map_series = {k: int(v) for k, v in (mapping.get("series") or {}).items()}
-        bouquet_canais = mapping.get("bouquet_canais") or None
-        bouquet_filmes = mapping.get("bouquet_filmes") or None
-        bouquet_series = mapping.get("bouquet_series") or None
+        bq_canais = _as_list(mapping.get("bouquets_canais") or mapping.get("bouquet_canais"))
+        bq_filmes = _as_list(mapping.get("bouquets_filmes") or mapping.get("bouquet_filmes"))
+        bq_series = _as_list(mapping.get("bouquets_series") or mapping.get("bouquet_series"))
         server_id = int(mapping.get("server_id") or 0)
         criar_cats = bool(mapping.get("criar_categorias", True))
         usar_tmdb = bool(mapping.get("usar_tmdb", False))
         tmdb_key = mapping.get("tmdb_api_key") or None
+        tmdb_lang = mapping.get("tmdb_language") or "pt-BR"
+        mode_canais = mapping.get("mode_canais") or mapping.get("mode") or "insert_only"
+        mode_filmes = mapping.get("mode_filmes") or mapping.get("mode") or "insert_only"
+        mode_series = mapping.get("mode_series") or mapping.get("mode") or "insert_only"
+        opts = {
+            "skip_tmdb_existing": bool(mapping.get("skip_tmdb_existing")),
+            "dedup_by_full_url": bool(mapping.get("dedup_by_full_url")),
+            "dedup_by_url_only": bool(mapping.get("dedup_by_url_only")),
+            "delete_dupes_before": bool(mapping.get("delete_dupes_before")),
+            "remove_orphans": bool(mapping.get("remove_orphans")),
+        }
 
-        totals = {"inseridos": 0, "skipped": 0, "errors": 0}
+        totals = {"inseridos": 0, "atualizados": 0, "skipped": 0, "errors": 0, "orphans_removed": 0}
         state = {"done": 0}
 
         def prog(done, tot, msg):
@@ -139,36 +155,48 @@ def run_source_sync(self, tenant_schema: str, job_id: str, source_id: str):
                 _job_update(tenant_schema, job_id, progress=pct, log_line=msg)
 
         if parsed["canais"]:
+            _job_update(tenant_schema, job_id, log_line=f"canais modo={mode_canais}")
             r = importer.importar_canais(
                 xui_conf, parsed["canais"], map_live,
-                bouquet_id=int(bouquet_canais) if bouquet_canais else None,
-                server_id=server_id, criar_categorias=criar_cats, progress=prog,
+                bouquet_ids=bq_canais, server_id=server_id,
+                criar_categorias=criar_cats, mode=mode_canais, opts=opts, progress=prog,
             )
-            for k in totals: totals[k] += r[k]
-            _job_update(tenant_schema, job_id, log_line=f"canais: +{r['inseridos']} skip={r['skipped']} err={r['errors']}")
+            for k in totals:
+                if k in r: totals[k] += r[k]
+            _job_update(tenant_schema, job_id,
+                        log_line=f"canais: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
 
         if parsed["filmes"]:
             if usar_tmdb:
-                _job_update(tenant_schema, job_id, log_line=f"TMDB filmes: enriquecendo {len(parsed['filmes'])}…")
-                importer.enrich_filmes_com_tmdb(parsed["filmes"], api_key=tmdb_key, progress=prog)
+                _job_update(tenant_schema, job_id, log_line=f"TMDB filmes: {len(parsed['filmes'])} títulos ({tmdb_lang})")
+                importer.enrich_filmes_com_tmdb(parsed["filmes"], api_key=tmdb_key,
+                                                 language=tmdb_lang, progress=prog)
+            _job_update(tenant_schema, job_id, log_line=f"filmes modo={mode_filmes}")
             r = importer.importar_filmes(
                 xui_conf, parsed["filmes"], map_movie,
-                bouquet_id=int(bouquet_filmes) if bouquet_filmes else None,
-                server_id=server_id, criar_categorias=criar_cats, progress=prog,
+                bouquet_ids=bq_filmes, server_id=server_id,
+                criar_categorias=criar_cats, mode=mode_filmes, opts=opts, progress=prog,
             )
-            for k in totals: totals[k] += r[k]
-            _job_update(tenant_schema, job_id, log_line=f"filmes: +{r['inseridos']} skip={r['skipped']} err={r['errors']}")
+            for k in totals:
+                if k in r: totals[k] += r[k]
+            _job_update(tenant_schema, job_id,
+                        log_line=f"filmes: +{r['inseridos']} ~{r.get('atualizados',0)} skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
 
         if parsed["series"]:
+            _job_update(tenant_schema, job_id, log_line=f"séries modo={mode_series}")
             r = importer.importar_series(
                 xui_conf, parsed["series"], map_series,
-                bouquet_id=int(bouquet_series) if bouquet_series else None,
-                server_id=server_id, criar_categorias=criar_cats,
-                usar_tmdb=usar_tmdb, tmdb_api_key=tmdb_key, progress=prog,
+                bouquet_ids=bq_series, server_id=server_id,
+                criar_categorias=criar_cats, mode=mode_series, opts=opts,
+                usar_tmdb=usar_tmdb, tmdb_api_key=tmdb_key, tmdb_language=tmdb_lang,
+                progress=prog,
             )
-            for k in totals: totals[k] += r[k]
+            for k in totals:
+                if k in r: totals[k] += r[k]
             _job_update(tenant_schema, job_id,
-                        log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']}")
+                        log_line=f"séries: +{r['inseridos']} eps, {r['series_criadas']} novas, skip={r['skipped']} err={r['errors']} orph=-{r.get('orphans_removed',0)}")
+
+
 
 
         elapsed = round(time.time() - started, 1)
